@@ -32,6 +32,7 @@ from tekisuto.models import TopicModel
 from tekisuto.models import InfoDynamics
 from tekisuto.metrics import jsd
 from preparations.preptopicmodeling import prepareTopicModeling
+from visualsrc.visualsrc import plotVisualsrc
 sys.path.insert(1, r'/home/commando/marislab/gsdmm/')
 from gsdmm import MovieGroupProcess
 sys.path.insert(1, r'/home/commando/marislab/compare-short-topic-modeling/src/')
@@ -39,6 +40,7 @@ from PreProcess.preprocess_texts import sent_to_words, parallelized_lemmatizer, 
 
 mgp = MovieGroupProcess(K=50, alpha=0.1, beta=0.1, n_iters=7)
 preTM = prepareTopicModeling
+pV = plotVisualsrc
 
 ##################################################################################
 ### GENSIM LDA FUNCTIONS                                                       ###
@@ -114,7 +116,7 @@ def lda_modelling(df,
                             datatype)
     return out
 
-def lda_modelling_per_group(df,
+def lda_modelling_per_group(ori_df,
                   tokens: list,
                   OUT_PATH: str,
                   tune_topic_range=[10,30,50],
@@ -133,7 +135,7 @@ def lda_modelling_per_group(df,
     Returns:
     Nothing
     """
-    group_ids = list(set(df["group_id"]))
+    group_ids = list(set(ori_df["group_id"]))
     out_topics = pd.DataFrame(columns=["group_id", "topic_nr", "topic_words"])
     out_best_topic_per_post = pd.DataFrame(columns=["group_id", "topic_nr", "text", "date"])
     
@@ -142,7 +144,7 @@ def lda_modelling_per_group(df,
     out = {}
     for group_id in group_ids:
         ic(group_id)
-        df = df[df["group_id"] == group_id]
+        df = ori_df[ori_df["group_id"] == group_id]
         ic(len(df))
         tokens = df["tokens"]
         try:
@@ -205,7 +207,8 @@ def export_model_and_tokens_per_group(out,
                             dates, 
                             OUT_PATH, 
                             datatype):
-    id_nr = id_nr.astype(str)
+    id_nr = str(int(id_nr))
+    out[id_nr] = {}
     out[id_nr]["model"] = tm.model
     out[id_nr]["nr_of_topics"] = n
     #out["id2word"] = tm.id2word
@@ -375,8 +378,8 @@ def set_late_barplot_settings(fig, ax1):
 #                       'description', 'link', 'application', 'comment_count', 'likes_count',
 #                       'shares_count', 'picture', 'story', 'created', 'updated', 'word_count'
 
-def novelty_transcience_resonance_lineplot(df, root_path, datatype):
-    df = df[df["date"] >= '2014-01-01']
+def novelty_transcience_resonance_lineplot(df, root_path, datatype, group_id):
+    #df = df[df["date"] >= '2014-01-01']
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
     ic("Line plot")
@@ -409,7 +412,7 @@ def novelty_transcience_resonance_lineplot(df, root_path, datatype):
     ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_novelty-resonance-transcience.png"
+    plot_name = f"{root_path}out/fig/{group_id}_{datatype}_novelty-resonance-transcience.png"
     fig.savefig(plot_name, bbox_extra_artists=(leg,), bbox_inches='tight')
     
     ic("Save figure done\n------------------\n")
@@ -417,6 +420,7 @@ def novelty_transcience_resonance_lineplot(df, root_path, datatype):
 
 def main(datatype, DATA_PATH, OUT_PATH, LANG):
     data_path = "/data/datalab/danish-facebook-groups/raw-export/*"
+    WINDOW = 3
 
     logging.info("----- New iteration -----")
 
@@ -429,7 +433,7 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     files = glob.glob(data_path)
     filename = [i for i in files if datatype in i]
     filename = filename[0]
-    df = read_json_data(filename)[:5000]
+    df = read_json_data(filename)[:10000]
     ic(df.head())
     ic(df.columns)
 
@@ -468,13 +472,32 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
         ic(time_info)
         logging.info(f"Finished LDA modelling in {toc - tic:0.4f} seconds")
     
+    group_ids = list(set(df["group_id"]))
     ic("[INFO] extracting novelty and resonance...")
-    dates = pd.to_datetime(df["created"])
-    WINDOW = 3
-    df = extract_novelty_resonance(df, out["theta"], out["dates"], WINDOW)
-    ic(df.head())    
-    df["date"] = pd.to_datetime(df["created"])
-    novelty_transcience_resonance_lineplot(df, OUT_PATH, datatype)
+    
+    for group_id in group_ids:
+        sample_df = df[df["group_id"] == group_id]
+        try:
+            group_id = str(int(group_id))
+            nr_df = extract_novelty_resonance(sample_df, out[group_id]["theta"], out[group_id]["dates"], WINDOW)
+            ic(nr_df.head())
+            nr_df["date"] = pd.to_datetime(nr_df["created"])
+            #novelty_transcience_resonance_lineplot(nrdf, OUT_PATH, datatype, group_id)
+            ic("[INFO] Get novelty, resonance, beta1")
+            time, novelty, resonance, beta1, xz, yz = pV.extract_adjusted_main_parameters(nr_df, WINDOW)
+            
+            pV.plot_initial_figures_facebook(novelty=nr_df["novelty"],
+                            resonance=nr_df["resonance"],
+                            xz=xz,
+                            yz=yz,
+                            OUT_PATH=OUT_PATH,
+                            group_id=group_id,
+                            datatype=datatype)
+            del nrdf, sample_df
+        except:
+            ic(f"[INFO] Failed to process {group_id}")
+            ic(len(df))
+            continue
 
     ic("[INFO] PIPELINE FINISHED")
     logging.info("----- Finished iteration -----")
