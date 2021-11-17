@@ -1,0 +1,7 @@
+*.csv
+*.pcl
+tmp/
+res/
+logs/
+*.log
+*.out
