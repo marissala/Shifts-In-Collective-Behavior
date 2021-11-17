@@ -433,7 +433,7 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     files = glob.glob(data_path)
     filename = [i for i in files if datatype in i]
     filename = filename[0]
-    df = read_json_data(filename)[:10000]
+    df = read_json_data(filename)#[:10000]
     ic(df.head())
     ic(df.columns)
 
@@ -482,9 +482,10 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
             nr_df = extract_novelty_resonance(sample_df, out[group_id]["theta"], out[group_id]["dates"], WINDOW)
             ic(nr_df.head())
             nr_df["date"] = pd.to_datetime(nr_df["created"])
+            nr_df = nr_df.sort_values("date")
             #novelty_transcience_resonance_lineplot(nrdf, OUT_PATH, datatype, group_id)
             ic("[INFO] Get novelty, resonance, beta1")
-            time, novelty, resonance, beta1, xz, yz = pV.extract_adjusted_main_parameters(nr_df, WINDOW)
+            time_var, novelty, resonance, beta1, xz, yz = pV.extract_adjusted_main_parameters(nr_df, WINDOW)
             
             pV.plot_initial_figures_facebook(novelty=nr_df["novelty"],
                             resonance=nr_df["resonance"],
@@ -504,7 +505,7 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='logs/main.log',
+    logging.basicConfig(filename='logs/main_1711.log',
                         #encoding='utf-8',
                         level=logging.DEBUG)
     datatype = "posts"
