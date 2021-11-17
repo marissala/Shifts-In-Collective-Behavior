@@ -319,6 +319,16 @@ def extract_novelty_resonance(df,
     df["rsigma"] = idmdl.rsigma
     return df
 
+def export_novelty_per_group(out,
+                            id_nr,
+                            novelty,
+                            resonance):
+    #id_nr = str(int(id_nr))
+    out[id_nr] = {}
+    out[id_nr]["novelty"] = novelty
+    out[id_nr]["resonance"] = resonance
+    return out
+
 def hurst_exp(resonance: list, 
               OUT_PATH: str):
     """
@@ -434,13 +444,15 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     filename = [i for i in files if datatype in i]
     filename = filename[0]
     df = read_json_data(filename)#[:10000]
-    ic(df.head())
-    ic(df.columns)
-
+    df = df[df["group_id"]==4349]
+    #group_sizes = df.groupby("group_id").size().reset_index()
+    #group_sizes.to_csv("out/group_sizes.csv", index=False)
+    
     if "text" not in df.columns:
         old_column_name = f"{datatype[:-1]}_text"
         try:
             df["text"] = df["message"]
+            df = df.drop("message", axis=1)
         except:
             df["text"] = df[old_column_name]
 
@@ -475,6 +487,7 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     group_ids = list(set(df["group_id"]))
     ic("[INFO] extracting novelty and resonance...")
     
+    nr_out = {}
     for group_id in group_ids:
         sample_df = df[df["group_id"] == group_id]
         try:
@@ -494,11 +507,19 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
                             OUT_PATH=OUT_PATH,
                             group_id=group_id,
                             datatype=datatype)
-            del nrdf, sample_df
+
+            export_novelty_per_group(nr_out,
+                            group_id,
+                            novelty=nr_df["novelty"],
+                            resonance=nr_df["resonance"])
+
+            del nr_df
         except:
             ic(f"[INFO] Failed to process {group_id}")
             ic(len(df))
             continue
+    with open(os.path.join(OUT_PATH, "out", "novelty-resonance", "{}_novelty-resonance.pcl".format(datatype)), "wb") as f:
+        pickle.dump(nr_out, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ic("[INFO] PIPELINE FINISHED")
     logging.info("----- Finished iteration -----")
