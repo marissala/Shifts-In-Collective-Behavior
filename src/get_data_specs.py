@@ -10,6 +10,7 @@ import pandas as pd
 from icecream import ic
 from re import match
 import jsonlines
+import pprint
 
 import seaborn as sns; sns.set()
 import pyplot_themes as themes
@@ -170,6 +171,9 @@ def set_late_barplot_settings(fig, ax1):
 #                       'shares_count', 'picture', 'story', 'created', 'updated', 'word_count'
 
 def basics_lineplot(df, root_path, datatype):
+    ic("Word count")
+    df['word_count'] = df.text.str.split().str.len()
+
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
     ic("Line plot")
@@ -217,63 +221,178 @@ def basics_lineplot(df, root_path, datatype):
     
     ic("Save figure done\n------------------\n")
 
-def posts_per_group_barplot(df, root_path, datatype):
+def posts_per_day_per_group_scatterplot(ori_df, root_path, datatype):
+    df = ori_df.groupby(["date", "group_id"]).agg({"id": 'count'}).reset_index()
+    ic(df.head())
+
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Line plot")
+
+    import numpy as np
+    def jitter(values,j):
+        return values + np.random.normal(j,0.1,values.shape)
+
+    ax1 = sns.scatterplot(x="date", y=jitter(df["id"],2), 
+                        hue="group_id", 
+                        s = 10,
+                        #linewidth = 3, 
+                        legend=False, data = df)
+    
+    ic("Late plot settings")
+    fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
+    
+    ax1.xaxis_date(tz="UTC")
+    date_form = mdates.DateFormatter("%Y")
+    ax1.xaxis.set_major_formatter(date_form)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/{datatype}_posts_per_day_per_group_scatter.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    
+    ic("Save figure done\n------------------\n")
+
+def posts_per_group_barplot(ori_df, root_path, datatype):
+    df = ori_df.groupby("group_id").agg({"id": 'nunique'}).reset_index()
+    ic(sum(df.id))
+    ic(df.describe()) # Report this in the paper!
+    df = df.sort_values('id', ascending=False)[0:50]
+
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
     ic("Bar plot")
-    ax1 = sns.barplot(x="group_id", y="id",
+    df["group_id"] = df["group_id"].astype(str)
+    ax1 = sns.barplot(y="group_id", x="id",
                       color = palette[7], 
-                      order = df.sort_values('id', ascending=False).group_id,
+                      #order = df.sort_values('id', ascending=False).group_id,
                       data = df)
 
     ic("Late plot settings")
     fig, ax1 = set_late_barplot_settings(fig, ax1)
-    ax1.set(xlabel=None, xticklabels=[])
 
-    #ic("Add legend")
-    #leg = plt.legend(bbox_to_anchor=(1.05, 0.5), loc='center left', facecolor='white')
-    # set the linewidth of each legend object
-    #for legobj in leg.legendHandles:
-    #    legobj.set_linewidth(10.0)
+    ax1.tick_params(labelsize=20)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/{datatype}_posts_per_group.png"
-    #fig.savefig(plot_name, bbox_extra_artists=(leg,), bbox_inches='tight')
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
+def unique_users_per_group_barplot(ori_df, root_path, datatype):
+    df = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
+    ic(sum(df.user_id))
+    ic(df.describe())
+    ic(df.head())
+    df = df.sort_values("user_id", ascending=False)[:50]
 
-def main(filename, from_originals, datatype, downsample_frequency=False):
-    df = read_data(filename, from_originals)
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Bar plot")
+    df["group_id"] = df["group_id"].astype(str)
+    ax1 = sns.barplot(y="group_id", x="user_id",
+                      color = palette[7], 
+                      #order = df.sort_values('user_id', ascending=False).group_id,
+                      data = df)
+
+    ic("Late plot settings")
+    fig, ax1 = set_late_barplot_settings(fig, ax1)
+
+    ax1.tick_params(labelsize=20)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/{datatype}_unique_users_per_group.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    ic("Save figure done\n------------------\n")
+
+def unique_users_over_time_lineplot(ori_df, root_path, datatype):
+    df = ori_df.groupby("date").agg({"user_id": 'count'}).reset_index()
+    ic(df.head())
+    ic(df.describe())
+
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Line plot")
+    ax1 = sns.lineplot(x="date", y="user_id",
+                      palette = palette[0], 
+                        linewidth = 3, data = df)
     
-    # how many posts are made in each group?
-    posts_per_group = df.groupby("group_id").agg({"id": 'count'}).reset_index()
-    ic(posts_per_group.head())
-    #posts_per_group.to_csv("res/posts_per_group.csv")
-    print(maris)
-    posts_per_group = pd.read_csv("res/posts_per_group.csv")
-    ic(len(posts_per_group))
-    ic(posts_per_group.describe())
-    ic("Posts per group")
-    posts_per_group = posts_per_group.sort_values('id', ascending=False)[0:100]
-    posts_per_group_barplot(posts_per_group, root_path, datatype)
+    ic("Late plot settings")
+    fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
+    
+    ax1.xaxis_date(tz="UTC")
+    date_form = mdates.DateFormatter("%Y")
+    ax1.xaxis.set_major_formatter(date_form)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/{datatype}_unique_users_over_time.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    
+    ic("Save figure done\n------------------\n")
+
+def total_users_over_time(df, root_path, datatype):
+
+    return 0
+
+def output_descriptive_df(df):
+    """Output a file that keeps numeric data only needed for visuals
+    df: pandas DataFrame with the original columns
+
+    Returns:
+    Saves a .csv file of numeric data, returns nothing
+    """
+    df["date"] = pd.to_datetime(df["created"], utc=True)
+    df['word_count'] = df.text.str.split().str.len()
+    ic("Select necessary columns")
+    df = df[['id', 'date', 'group_id', 'user_id', 'comment_count', 'likes_count', 'shares_count', 'word_count']]
+    ic("Save descriptive df")
+    df.to_csv("/home/commando/marislab/facebook-posts/res/descriptive_only.csv", index=False)
+    ic("Save finished")
+
+def main(filename, 
+         from_originals, 
+         datatype: str, 
+         downsample_frequency=False):
+    """
+    """
+    # Generate dataset with just numeric data needed for visuals
+    #df = read_data(filename, from_originals)
+    #output_descriptive_df(df)
+    
+    # Read in dataset with just numeric data for visuals
+    ic("[INFO] Read in saved descriptive data")
+    df = pd.read_csv("/home/commando/marislab/facebook-posts/res/descriptive_only.csv")
+    ic(df.columns)
     
     if downsample_frequency:
         df["date"] = pd.to_datetime(df["created"], utc=True)
         df = downsample(df, frequency=downsample_frequency)
         df.to_csv("ds.csv", index=False)
     
-    ic(df.head())
     df["date"] = pd.to_datetime(df["date"], utc=True)
-    
-    ic("Word count")
-    df['word_count'] = df.text.str.split().str.len()
+
+    ic("Select a few groups")
+    small_df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
+    #small_df = df[df["group_id"].isin([3297])]
+    ic(small_df.head())
+    ic(len(small_df))
     
     ic("Visualize:")
-    ic("Basic lineplot")
-    basics_lineplot(df, root_path, datatype)
+    #ic("Basic lineplot")
+    #basics_lineplot(df, root_path, datatype)
+
+    #ic("Posts per day per group")
+    #posts_per_day_per_group_scatterplot(df, root_path, datatype)
+    
     ic("Posts per group")
-    posts_per_group_barplot(posts_per_group, root_path, datatype)
+    posts_per_group_barplot(df, root_path, datatype)
+    
+    ic("Unique users per group")
+    unique_users_per_group_barplot(df, root_path, datatype)
+    
+    #ic("Unique users over time")
+    #unique_users_over_time_lineplot(small_df, root_path, datatype)
+    
+    #ic("Total users over time")
+
     
 
 if __name__ == '__main__':
@@ -290,6 +409,6 @@ if __name__ == '__main__':
     filename = filename[0]
     ic(filename)
     
-    main(filename, from_originals, datatype, downsample_frequency)
+    main(filename, from_originals, datatype)
     
     ic("DONE")
