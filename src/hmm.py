@@ -41,7 +41,7 @@ def load_from_premade_model(OUT_PATH: str,
 
 def bic_general(likelihood_fn, k, X):
     """Calculates the BIC score for a model
-    likelihood_fn: Function. Should take as input X and give out   the log likelihood
+    likelihood_fn: Function. Should take as input X and give out the log likelihood
                   of the data under the fitted model.
     k - int. Number of parameters in the model. The parameter that we are trying to optimize.
                     For HMM it is number of states.
@@ -133,69 +133,62 @@ def visualize(X, Z):
 
     plt.savefig("fig1.png")
 
-def vis_test(novelty, resonance, nov_states, res_states):
+def vis_test(OUT_PATH, group_id, novelty, resonance, nov_states, res_states):
+    colorlist = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
+
+    #### NOVELTY ####
     novelty = savgol_filter(novelty, 401, 1)
     df = pd.DataFrame(dict(novelty=novelty, state=nov_states)).reset_index()
     df.columns = ["time", "novelty", "state"]
-    ic(df.head())
-    df.to_csv("vis_test.csv")
     fig, ax = plt.subplots()
-    
-    colorlist = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
-
-    nr_of_colors = len(set(nov_states))
-
+    my_states = list(set(nov_states))
     colors = {}
-    for i in range(0,nr_of_colors):
+    for i in my_states:
         colors[i] = colorlist[i]
-
     ax.scatter(df['time'], df['novelty'], 
                 c=df['state'].map(colors),
                 s=0.2)
-
-    plt.savefig("fig2_gaussian_novelty.png")
+    filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_novelty.png"
+    plt.savefig(filename)
     ic("DONE")
 
+    #### RESONANCE ####
     resonance = savgol_filter(resonance, 401, 1)
     df = pd.DataFrame(dict(resonance=resonance, state=res_states)).reset_index()
     df.columns = ["time", "resonance", "state"]
     fig, ax = plt.subplots()
-
-    nr_of_colors = len(set(res_states))
+    my_states = list(set(res_states))
     colors = {}
-    for i in range(0,nr_of_colors):
+    for i in my_states:
         colors[i] = colorlist[i]
- 
     ax.scatter(df['time'], df['resonance'], 
                 c=df['state'].map(colors),
                 s=0.2)
-
-    plt.savefig("fig2_gaussian_resonance.png")
-
-
-
+    filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_resonance.png"
+    plt.savefig(filename)
+    res_states = pd.DataFrame(res_states)
+    res_states.to_csv("res_states.csv", index=False)
+    ic("DONE")
 
 def main(OUT_PATH, datatype):
     out = load_from_premade_model(OUT_PATH, datatype)    
-    group_id = "4349"
+    group_ids = ["3274", "3278", "3290", "3296", "3297", "4349"]
     n_components = 3
-    n_iter = 10
+    n_iter = 20
 
-    novelty = savgol_filter(out[group_id]["novelty"], 401, 1)
-    resonance = savgol_filter(out[group_id]["resonance"], 401, 1)
+    for group_id in group_ids:
+        novelty = savgol_filter(out[group_id]["novelty"], 401, 1)
+        resonance = savgol_filter(out[group_id]["resonance"], 401, 1)
 
-    Z_nov = everything_hmm(n_components,
-                    n_iter,
-                    novelty)
+        Z_nov = everything_hmm(n_components,
+                        n_iter,
+                        novelty)
 
-    Z_res = everything_hmm(n_components,
-                    n_iter,
-                    resonance)
+        Z_res = everything_hmm(n_components,
+                        n_iter,
+                        resonance)
 
-    vis_test(novelty, resonance, Z_nov, Z_res)
-    #visualize(novelty, Z_nov)
-
-    ################### NON GAUSSIAN #######################
+        vis_test(OUT_PATH, group_id, novelty, resonance, Z_nov, Z_res)
 
 
 if __name__ == '__main__':
