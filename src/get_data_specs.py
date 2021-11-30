@@ -261,7 +261,7 @@ def posts_per_group_barplot(ori_df, root_path, datatype):
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
     ic("Bar plot")
-    df["group_id"] = df["group_id"].astype(str)
+    df["group_id"] = df["group_id"].astype(int).astype(str)
     ax1 = sns.barplot(y="group_id", x="id",
                       color = palette[7], 
                       #order = df.sort_values('id', ascending=False).group_id,
@@ -270,7 +270,7 @@ def posts_per_group_barplot(ori_df, root_path, datatype):
     ic("Late plot settings")
     fig, ax1 = set_late_barplot_settings(fig, ax1)
 
-    ax1.tick_params(labelsize=20)
+    ax1.tick_params(labelsize=15)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/{datatype}_posts_per_group.png"
@@ -279,15 +279,15 @@ def posts_per_group_barplot(ori_df, root_path, datatype):
 
 def unique_users_per_group_barplot(ori_df, root_path, datatype):
     df = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
-    ic(sum(df.user_id))
+    
     ic(df.describe())
-    ic(df.head())
+    
     df = df.sort_values("user_id", ascending=False)[:50]
 
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
     ic("Bar plot")
-    df["group_id"] = df["group_id"].astype(str)
+    df["group_id"] = df["group_id"].astype(int).astype(str)
     ax1 = sns.barplot(y="group_id", x="user_id",
                       color = palette[7], 
                       #order = df.sort_values('user_id', ascending=False).group_id,
@@ -296,10 +296,38 @@ def unique_users_per_group_barplot(ori_df, root_path, datatype):
     ic("Late plot settings")
     fig, ax1 = set_late_barplot_settings(fig, ax1)
 
-    ax1.tick_params(labelsize=20)
+    ax1.tick_params(labelsize=15)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/{datatype}_unique_users_per_group.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    ic("Save figure done\n------------------\n")
+
+def posts_users_scatterplot(ori_df, root_path, datatype):
+    users = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
+    posts = ori_df.groupby("group_id").agg({"id": 'nunique'}).reset_index()
+    
+    df = pd.merge(left=users, right=posts, on="group_id")
+    ic(df.head())
+
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Scatter plot")
+    
+    ax1 = sns.scatterplot(x="id", y="user_id",
+                      color = palette[6],
+                      s = 15, 
+                      #order = df.sort_values('user_id', ascending=False).group_id,
+                      data = df)
+
+    ic("Late plot settings")
+    fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = False)
+
+    ax1.set_xlabel("Unique posts per group", fontsize = 40)
+    ax1.set_ylabel("Unique users per group", fontsize = 40)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/{datatype}_posts_vs_unique_users.png"
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
@@ -382,15 +410,18 @@ def main(filename,
     #ic("Posts per day per group")
     #posts_per_day_per_group_scatterplot(df, root_path, datatype)
     
-    ic("Posts per group")
-    posts_per_group_barplot(df, root_path, datatype)
+    #ic("Posts per group")
+    #posts_per_group_barplot(df, root_path, datatype)
     
     ic("Unique users per group")
     unique_users_per_group_barplot(df, root_path, datatype)
     
     #ic("Unique users over time")
-    #unique_users_over_time_lineplot(small_df, root_path, datatype)
+    #unique_users_over_time_lineplot(df, root_path, datatype)
     
+    #ic("Posts vs Users: scatterplot")
+    #posts_users_scatterplot(df, root_path, datatype)
+
     #ic("Total users over time")
 
     
