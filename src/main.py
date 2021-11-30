@@ -444,7 +444,7 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     filename = [i for i in files if datatype in i]
     filename = filename[0]
     df = read_json_data(filename)#[:10000]
-    df = df[df["group_id"]==4349]
+    df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
     #group_sizes = df.groupby("group_id").size().reset_index()
     #group_sizes.to_csv("out/group_sizes.csv", index=False)
     
@@ -457,6 +457,8 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
             df["text"] = df[old_column_name]
 
     df['word_count'] = df.text.str.split().str.len()
+    df["date"] = pd.to_datetime(df["created"])
+    df = df.sort_values("date")
     
     ic("[INFO] Prepare data...")
     logging.info("[INFO] Prepare data...")
@@ -489,13 +491,11 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     
     nr_out = {}
     for group_id in group_ids:
-        sample_df = df[df["group_id"] == group_id]
+        sample_df = df[df["group_id"] == group_id].reset_index(drop=True)
+        sample_df = sample_df.sort_values("date")
         try:
             group_id = str(int(group_id))
             nr_df = extract_novelty_resonance(sample_df, out[group_id]["theta"], out[group_id]["dates"], WINDOW)
-            ic(nr_df.head())
-            nr_df["date"] = pd.to_datetime(nr_df["created"])
-            nr_df = nr_df.sort_values("date")
             #novelty_transcience_resonance_lineplot(nrdf, OUT_PATH, datatype, group_id)
             ic("[INFO] Get novelty, resonance, beta1")
             time_var, novelty, resonance, beta1, xz, yz = pV.extract_adjusted_main_parameters(nr_df, WINDOW)
@@ -527,7 +527,6 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
 
 if __name__ == '__main__':
     logging.basicConfig(filename='logs/main_1711.log',
-                        #encoding='utf-8',
                         level=logging.DEBUG)
     datatype = "posts"
     activated = spacy.prefer_gpu()
