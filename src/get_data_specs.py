@@ -6,6 +6,7 @@ import re
 import ast
 import glob
 import json
+import numpy as np
 import pandas as pd
 from icecream import ic
 from re import match
@@ -21,41 +22,53 @@ import matplotlib.dates as mdates
 from matplotlib.cbook.deprecation import MatplotlibDeprecationWarning
 
 
-def read_tmp_data(data_path):
+def read_tmp_data(data_path: str):
+    """Reads a temporary smaller dataset for testing
+    Args:
+    data_path: complete path of temporary dataset (.csv)
+    
+    Returns:
+    pandas DataFrame
+    """
     df = pd.read_csv(data_path, sep=";")
     ic(df.columns)
     ic(df.head())
     return df
 
-def read_json_data(filename):
-    ic("Read data")
+def read_json_data(filename: str):
+    """Reads large json file that has problems with newlines
+    Args:
+    filename: complete path to json file
+
+    Returns:
+    pandas DataFrame
+    """
+    ic("[INFO] Read string")
     with open(filename) as f:
         giant_string = f.read()
-    ic(len(giant_string))
     giant_string = giant_string[:-5]
-    ic("Base cleaning")
     
+    ic("[INFO] Base cleaning")
     giant_string = re.sub('\\n', ' ', giant_string)
     giant_string = f'[{giant_string}]'
     
-    ic("Json loads")
+    ic("[INFO] Json loads")
     data = json.loads(giant_string)
-    
     ic(len(data))
     del giant_string
     df = pd.DataFrame.from_records(data)
     return df
 
-def read_json_line_by_line(filename): # Doesnt work, leaving for now
-    data = []
-    with jsonlines.open(filename) as f:
-        for line in f:
-            print(line)
-            data.append(json.loads(line))
-    df = pd.DataFrame.from_records(data)
-    return df
-
-def read_data(filename, from_originals):
+def read_data(filename: str, 
+              from_originals: bool):
+    """Reads in the original large json file, or a smaller saved sample
+    Args:
+    filename: complete path to json file
+    from_originals: if user wants to load original json or a sample dataset
+    
+    Returns:
+    pandas DataFrame
+    """
     if from_originals:
         df = read_json_data(filename) # read_json_data(filename)
     else:
@@ -67,11 +80,13 @@ def read_data(filename, from_originals):
 def downsample(df,
             frequency='1T',
             if_list=False):
-    """
+    """Downsamples based on date, concatenates texts
+    Args:
     df: pandas DataFrame with columns "date" and "text"
     frequency: time interval for downsampling, default 1T - creates 1min timebins
 
-    Returns downsampled pandas DataFrame
+    Returns:
+    Downsampled pandas DataFrame
     """
     df = df.dropna().reset_index(drop=True)
     df["text"] = df["text"].astype(str)
@@ -88,7 +103,6 @@ def downsample(df,
         df = df.resample(frequency).agg({"text": ' '.join, "id": 'count', "comment_count": 'sum', "likes_count": 'sum', "shares_count": 'sum'})
 
     df = df.reset_index(col_fill = "date")
-    #df = df[["text", "date"]]
     
     if not if_list:
         df["text"] = df["text"].astype(str)
@@ -96,7 +110,7 @@ def downsample(df,
     
     return df
 
-
+# Does not work with the current config of the dataset
 def save_data_specs(datatype: str,
                     df):
     """Saves specs (word count means etc) of the specific dataset. Saved file is in /out/
@@ -124,11 +138,17 @@ def save_data_specs(datatype: str,
     with open(f'out/{datatype}_specs.json', 'w', encoding='utf-8') as f:
         json.dump(str(df_specs), f, ensure_ascii=False, indent=4)
 
-# columns; 'id', 'group_id', 'user_id', 'user_name', 'message', 'name',
-#                       'description', 'link', 'application', 'comment_count', 'likes_count',
-#                       'shares_count', 'picture', 'story', 'created', 'updated'
-
-def set_base_plot_settings(fontsize, if_palette):
+def set_base_plot_settings(fontsize: int, 
+                           if_palette: bool):
+    """Controls the base settings for all seaborn plots
+    Args:
+    fontsize: font size for ticks
+    if_palette: if True then returns a colorblind friendly color palette,
+                else returns nothing
+    
+    Returns:
+    fig, ax1 and palette
+    """
     matplotlib.rc('ytick', labelsize=fontsize)
     matplotlib.rc('xtick', labelsize=fontsize)
     themes.theme_minimal(grid=False, ticks=False, fontsize=fontsize)
@@ -145,7 +165,19 @@ def set_base_plot_settings(fontsize, if_palette):
 
     return fig, ax1, palette
 
-def set_late_plot_settings(fig, ax1, if_dates):
+def set_late_plot_settings(fig, 
+                           ax1, 
+                           if_dates:bool):
+    """Configures plot settings after plotting. Removes x and y labels,
+       sets ylim, fontsizes for labels
+    Args:
+    fig: matplotlib seaborn figure
+    ax1: matplotlib seaborn axis
+    if_dates: whether x axis is a time series
+
+    Returns:
+    Updated fig and ax1
+    """
     ax1.set(xlabel="", ylabel = "")
     ax1.xaxis.get_label().set_fontsize(40)
     ax1.yaxis.get_label().set_fontsize(40)
@@ -160,7 +192,17 @@ def set_late_plot_settings(fig, ax1, if_dates):
     ax1.set(ylim=(0, None))
     return fig, ax1
 
-def set_late_barplot_settings(fig, ax1):
+def set_late_barplot_settings(fig, 
+                              ax1):
+    """Sets settings for barplots after plotting. 
+       Removes labels on x and y axis
+    Args:
+    fig: matplotlib seaborn figure
+    ax1: matplotlib seaborn axis
+
+    Returns:
+    Updated fig and ax1
+    """
     ax1.set(xlabel="", ylabel = "")
     ax1.xaxis.get_label().set_fontsize(40)
     ax1.yaxis.get_label().set_fontsize(40)
@@ -170,7 +212,19 @@ def set_late_barplot_settings(fig, ax1):
 #                       'description', 'link', 'application', 'comment_count', 'likes_count',
 #                       'shares_count', 'picture', 'story', 'created', 'updated', 'word_count'
 
-def basics_lineplot(df, root_path, datatype):
+def basics_lineplot(df, 
+                    root_path:str, 
+                    datatype:str):
+    """Generates a line plot with numeric statistics of the dataset
+       over time
+    Args:
+    df: pandas DataFrame, needs column "date" in Datetime format
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
     ic("Word count")
     df['word_count'] = df.text.str.split().str.len()
 
@@ -221,22 +275,39 @@ def basics_lineplot(df, root_path, datatype):
     
     ic("Save figure done\n------------------\n")
 
-def posts_per_day_per_group_scatterplot(ori_df, root_path, datatype):
+def jitter(values,j):
+    """Creates slightly altered numbers to jitter them in a scatterplot
+    Args:
+    values: list of values to jitter (column from DataFrame on y-axis)
+    j: dimensions
+
+    Returns:
+    jittered values
+    """
+    return values + np.random.normal(j,0.1,values.shape)
+
+def posts_per_day_per_group_scatterplot(ori_df, 
+                                        root_path:str, 
+                                        datatype:str):
+    """Generates a scatter plot with posts per day
+    Args:
+    ori_df: pandas DataFrame, needs column "date" in Datetime format
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
     df = ori_df.groupby(["date", "group_id"]).agg({"id": 'count'}).reset_index()
     ic(df.head())
 
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
-    ic("Line plot")
-
-    import numpy as np
-    def jitter(values,j):
-        return values + np.random.normal(j,0.1,values.shape)
+    ic("Scatter plot")
 
     ax1 = sns.scatterplot(x="date", y=jitter(df["id"],2), 
                         hue="group_id", 
                         s = 10,
-                        #linewidth = 3, 
                         legend=False, data = df)
     
     ic("Late plot settings")
@@ -252,9 +323,19 @@ def posts_per_day_per_group_scatterplot(ori_df, root_path, datatype):
     
     ic("Save figure done\n------------------\n")
 
-def posts_per_group_barplot(ori_df, root_path, datatype):
+def posts_per_group_barplot(ori_df, 
+                            root_path:str, 
+                            datatype:str):
+    """Generates a bar plot with posts per group
+    Args:
+    ori_df: pandas DataFrame
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
     df = ori_df.groupby("group_id").agg({"id": 'nunique'}).reset_index()
-    ic(sum(df.id))
     ic(df.describe()) # Report this in the paper!
     df = df.sort_values('id', ascending=False)[0:50]
 
@@ -277,11 +358,20 @@ def posts_per_group_barplot(ori_df, root_path, datatype):
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
-def unique_users_per_group_barplot(ori_df, root_path, datatype):
+def unique_users_per_group_barplot(ori_df, 
+                                   root_path:str, 
+                                   datatype:str):
+    """Generates a bar plot with unique users per group
+    Args:
+    ori_df: pandas DataFrame
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
     df = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
-    
-    ic(df.describe())
-    
+    ic(df.describe()) #Report this in the paper!
     df = df.sort_values("user_id", ascending=False)[:50]
 
     ic("Base plot settings")
@@ -303,7 +393,18 @@ def unique_users_per_group_barplot(ori_df, root_path, datatype):
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
-def posts_users_scatterplot(ori_df, root_path, datatype):
+def posts_users_scatterplot(ori_df, 
+                            root_path:str, 
+                            datatype:str):
+    """Generates a scatter plot with posts vs users
+    Args:
+    ori_df: pandas DataFrame
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
     users = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
     posts = ori_df.groupby("group_id").agg({"id": 'nunique'}).reset_index()
     
@@ -331,9 +432,19 @@ def posts_users_scatterplot(ori_df, root_path, datatype):
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
-def unique_users_over_time_lineplot(ori_df, root_path, datatype):
+def unique_users_over_time_lineplot(ori_df, 
+                                    root_path:str, 
+                                    datatype:str):
+    """Generates a line plot with unique users over time
+    Args:
+    ori_df: pandas DataFrame, needs column "date" in Datetime format
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
     df = ori_df.groupby("date").agg({"user_id": 'count'}).reset_index()
-    ic(df.head())
     ic(df.describe())
 
     ic("Base plot settings")
@@ -362,6 +473,7 @@ def total_users_over_time(df, root_path, datatype):
 
 def output_descriptive_df(df):
     """Output a file that keeps numeric data only needed for visuals
+    Args:
     df: pandas DataFrame with the original columns
 
     Returns:
@@ -375,11 +487,15 @@ def output_descriptive_df(df):
     df.to_csv("/home/commando/marislab/facebook-posts/res/descriptive_only.csv", index=False)
     ic("Save finished")
 
-def main(filename, 
-         from_originals, 
+def main(filename:str, 
+         from_originals:bool, 
          datatype: str, 
          downsample_frequency=False):
-    """
+    """Main function combining the rest
+    filename: complete path to original json file
+    from_originals: whether to load the original json or load a small sample
+    datatype: "posts" or "comments" for Facebook data
+    downsample_frequency: size of time bins if downsampling is desired
     """
     # Generate dataset with just numeric data needed for visuals
     #df = read_data(filename, from_originals)
@@ -400,8 +516,6 @@ def main(filename,
     ic("Select a few groups")
     small_df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
     #small_df = df[df["group_id"].isin([3297])]
-    ic(small_df.head())
-    ic(len(small_df))
     
     ic("Visualize:")
     #ic("Basic lineplot")
@@ -423,7 +537,6 @@ def main(filename,
     #posts_users_scatterplot(df, root_path, datatype)
 
     #ic("Total users over time")
-
     
 
 if __name__ == '__main__':
