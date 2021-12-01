@@ -1,7 +1,14 @@
+# datasets
 *.csv
 *.pcl
+
+# folders
 tmp/
 res/
 logs/
+out/fig/
+fig/
+
+# logs
 *.log
 *.out
