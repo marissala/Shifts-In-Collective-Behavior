@@ -53,17 +53,18 @@ def lda_modelling(df,
                   estimate_topics=False,
                   plot_topics=False,
                   **kwargs):
-    """
+    """Runs basic LDA on texts, saves and returns a file with results
     Args:
+    df: pandas DataFrame
     tokens: list of strings (document)
     OUT_PATH: location for saving the output
-    estimate topics: whether to search a range of topics
     tune_topic_range: number of topics to fit
+    estimate topics: whether to search a range of topics
     plot_topics: quality check, plot coherence by topics
     **kwargs: other arguments to LDAmulticore
     
     Returns:
-    Nothing
+    Results of topic modeling
     """
     if estimate_topics:
         tm = TopicModel(tokens)
@@ -123,17 +124,18 @@ def lda_modelling_per_group(ori_df,
                   estimate_topics=False,
                   plot_topics=False,
                   **kwargs):
-    """
+    """Runs basic LDA modelling per group, saves and returns results
     Args:
+    ori_df: pandas DataFrame
     tokens: list of strings (document)
     OUT_PATH: location for saving the output
-    estimate topics: whether to search a range of topics
     tune_topic_range: number of topics to fit
+    estimate topics: whether to search a range of topics
     plot_topics: quality check, plot coherence by topics
     **kwargs: other arguments to LDAmulticore
     
     Returns:
-    Nothing
+    Results of topic modeling
     """
     group_ids = list(set(ori_df["group_id"]))
     out_topics = pd.DataFrame(columns=["group_id", "topic_nr", "topic_words"])
@@ -201,45 +203,74 @@ def lda_modelling_per_group(ori_df,
 def export_model_and_tokens_per_group(out,
                             id_nr,
                             tm, 
-                            n, 
-                            tokens, 
-                            theta, 
-                            dates, 
-                            OUT_PATH, 
-                            datatype):
+                            n:int, 
+                            tokens:list, 
+                            theta:list, 
+                            dates:list):
+    """Exports a json dictionary with topic modeling results per group
+    Args:
+    out: dictionary of main results
+    id_nr: group_id of the group
+    tm: topic model
+    n: number of topics used for topic modeling
+    tokens: list of tokens
+    theta: list of theta values
+    dates: list of dates
+
+    Returns:
+    fills the original dictionary with values for a single group's tm results
+    """
     id_nr = str(int(id_nr))
     out[id_nr] = {}
     out[id_nr]["model"] = tm.model
     out[id_nr]["nr_of_topics"] = n
-    #out["id2word"] = tm.id2word
-    #out["corpus"] = tm.corpus
     out[id_nr]["tokenlists"] = tm.tokenlists
-    out[id_nr]["tokens"] = tokens   #add?
+    out[id_nr]["tokens"] = tokens
     out[id_nr]["theta"] = theta
     out[id_nr]["dates"] = dates
     return out
 
 def export_model_and_tokens(tm, 
-                            n, 
-                            tokens, 
-                            theta, 
-                            dates, 
-                            OUT_PATH, 
-                            datatype):
+                            n:int, 
+                            tokens:list, 
+                            theta:list, 
+                            dates:list, 
+                            OUT_PATH:str, 
+                            datatype:str):
+    """Exports a json dictionary with topic modeling results
+    Args:
+    tm: topic model
+    n: number of topics used for topic modeling
+    tokens: list of tokens
+    theta: list of theta values
+    dates: list of dates
+    OUT_PATH: path to current directory
+    datatype: "posts" or "comments" for Facebook data
+
+    Returns:
+    a dictionary with topic modeling results
+    """
     out = {}
     out["model"] = tm.model
     out["nr_of_topics"] = n
-    #out["id2word"] = tm.id2word
-    #out["corpus"] = tm.corpus
     out["tokenlists"] = tm.tokenlists
-    out["tokens"] = tokens   #add?
+    out["tokens"] = tokens
     out["theta"] = theta
     out["dates"] = dates
     with open(os.path.join(OUT_PATH, "mdl", "topic_dist_{datatype}.pcl"), "wb") as f:
         pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
     return out
     
-def load_from_premade_model(OUT_PATH, datatype):
+def load_from_premade_model(OUT_PATH:str, 
+                            datatype:str):
+    """Loads topic distribution from premade model
+    Args:
+    OUT_PATH: path to current directory
+    datatype: "posts" or "comments" for Facebook data
+    
+    Returns:
+    premade model as a dictionary
+    """
     ic("[INFO] Loading previous topic model...")
     with open(os.path.join(OUT_PATH, "mdl", "topic_dist_{}.pcl".format(datatype), 'rb')) as f:
         out = pickle.load(f)
@@ -249,29 +280,40 @@ def load_from_premade_model(OUT_PATH, datatype):
 ### PREPARE DATA                                                               ###
 ##################################################################################
     
-def prepare_data(df, LANG):
+def prepare_data(df, 
+                LANG:str):
+    """Lemmatizes and tokenizes texts
+    Args:
+    df: pandas DataFrame
+    LANG: 2-letter language indicator, currently expects Danish only
+
+    Returns:
+    list of tokens and the input dataframe with added column of "tokens"
+    """
     if LANG == "da":
         nlp = spacy.load("da_core_news_lg", disable=['parser', 'ner'])
-    #texts = df.text.values.tolist()
-    #texts_words = list(sent_to_words(texts))
     
     nlp.add_pipe('sentencizer')
     ic("[INFO] Lemmatizing...")
-    #tmp = map(' '.join, texts_words)
-    #lemmas = preTM.make_lemmas(df, nlp, LANG)
     tmp_df = df["text"].reset_index()
     tmp_df['text'] = tmp_df['text'].astype(str)
-    lemmas = parallelized_lemmatizer(tmp_df) #make_lemmas(texts_words, nlp) #spacy_lemmatize(tmp, nlp)
-    
+    lemmas = parallelized_lemmatizer(tmp_df)
+
     ic("[INFO] Tokenizing...")
     to = Tokenizer()
     tokens = to.doctokenizer(lemmas)
     ic(len(tokens), ic(len(df)))
     df["tokens"] = tokens
-    #tokens, df = remove_invalid_entries(tokens, df)
     return tokens, df
 
-def read_json_data(filename):
+def read_json_data(filename:str):
+    """Read the original large json file (Facebook data), slightly clean
+    Args:
+    filename: complete path to the .json file
+
+    Returns:
+    pandas DataFrame
+    """
     ic("Read data")
     with open(filename) as f:
         giant_string = f.read()
@@ -295,16 +337,17 @@ def read_json_data(filename):
 ##################################################################################
 
 def extract_novelty_resonance(df, 
-                             theta: list, 
-                             dates: list, 
-                             window: int):
-    """
+                             theta:list, 
+                             dates:list, 
+                             window:int):
+    """Calculate novelty, transcience and resonance
     df: pandas DataFrame
     theta: list of theta values (list of lists)
     dates: list of dates
     window: int of the window size
 
-    Returns pandas DataFrame with novelty-resonance values
+    Returns:
+    pandas DataFrame with novelty-resonance values
     """
     idmdl = InfoDynamics(data = theta, time = dates, window = window)
     idmdl.novelty(meas = jsd)
@@ -319,11 +362,20 @@ def extract_novelty_resonance(df,
     df["rsigma"] = idmdl.rsigma
     return df
 
-def export_novelty_per_group(out,
-                            id_nr,
-                            novelty,
-                            resonance):
-    #id_nr = str(int(id_nr))
+def export_novelty_per_group(out:dict,
+                            id_nr:str,
+                            novelty:list,
+                            resonance:list):
+    """Export novelty and resonance values per group
+    Args:
+    out: dictionary that holds values for all groups
+    id_nr: group id of the group at hand
+    novelty: list of novelty values
+    resonance: list of resonance values
+
+    Returns:
+    dictionary
+    """
     out[id_nr] = {}
     out[id_nr]["novelty"] = novelty
     out[id_nr]["resonance"] = resonance
@@ -331,104 +383,30 @@ def export_novelty_per_group(out,
 
 def hurst_exp(resonance: list, 
               OUT_PATH: str):
-    """
+    """Calculates Hurst epxponent and plots
+    Args:
     resonance:  list of resonance values
     OUT_PATH: path for where the output is saved to
 
-    Returns hurst exponent hurst_r
+    Returns:
+    hurst exponent hurst_r
     """
     nolds.hurst_rs(resonance, nvals=None, fit='poly', debug_plot=True, plot_file=None, corrected=True, unbiased=True)
     fignameH = os.path.join(OUT_PATH, "fig", "H_plot.png")
     hurst_r = nolds.hurst_rs(resonance, nvals=None, fit='poly', debug_plot=True, plot_file=fignameH, corrected=True, unbiased=True)
     return hurst_r
 
-### 
-### VISUALIZE
-###
 
-def set_base_plot_settings(fontsize, if_palette):
-    matplotlib.rc('ytick', labelsize=fontsize)
-    matplotlib.rc('xtick', labelsize=fontsize)
-    themes.theme_minimal(grid=False, ticks=False, fontsize=fontsize)
-    a4_dims = (25,15)
-    
-    if if_palette:
-        #          0 black      1 orange  2 L blue   3 green    4 L orange  5 D blue  6 D orange 7 purple
-        palette = ["#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
-    else:
-        palette = 0
-    
-    fig, (ax1) = plt.subplots(1,1, figsize=a4_dims)
-    sns.set(font_scale = 2)
-
-    return fig, ax1, palette
-
-def set_late_plot_settings(fig, ax1, if_dates):
-    ax1.set(xlabel="", ylabel = "")
-    ax1.xaxis.get_label().set_fontsize(40)
-    ax1.yaxis.get_label().set_fontsize(40)
-
-    ax1.grid(color='darkgrey', linestyle='-', linewidth=0.5, which= "both")
-    if if_dates:
-        # Define the date format
-        ax1.xaxis_date(tz="UTC")
-        date_form = mdates.DateFormatter("%d-%b")
-        ax1.xaxis.set_major_formatter(date_form)
-
-    #ax1.set(ylim=(0, None))
-    return fig, ax1
-
-def set_late_barplot_settings(fig, ax1):
-    ax1.set(xlabel="", ylabel = "")
-    ax1.xaxis.get_label().set_fontsize(40)
-    ax1.yaxis.get_label().set_fontsize(40)
-    return fig, ax1
-
-# columns; 'id', 'group_id', 'user_id', 'user_name', 'message', 'name',
-#                       'description', 'link', 'application', 'comment_count', 'likes_count',
-#                       'shares_count', 'picture', 'story', 'created', 'updated', 'word_count'
-
-def novelty_transcience_resonance_lineplot(df, root_path, datatype, group_id):
-    #df = df[df["date"] >= '2014-01-01']
-    ic("Base plot settings")
-    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
-    ic("Line plot")
-    ax1 = sns.lineplot(x="date", y="novelty",
-                      palette = palette[1], 
-                      label = "Novelty",
-                        linewidth = 3, data = df)
-
-    ax1 = sns.lineplot(x="date", y="transience",
-                      palette = palette[2], 
-                      label = "Transience",
-                        linewidth = 3, data = df)
-
-    ax1 = sns.lineplot(x="date", y="resonance",
-                      palette = palette[3], 
-                      label = "Resonance",
-                        linewidth = 3, data = df)
-    
-    ic("Late plot settings")
-    fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
-
-    ic("Add legend")
-    leg = plt.legend(bbox_to_anchor=(1.05, 0.5), loc='center left', facecolor='white')
-    # set the linewidth of each legend object
-    for legobj in leg.legendHandles:
-        legobj.set_linewidth(10.0)
-    
-    ax1.xaxis_date(tz="UTC")
-    date_form = mdates.DateFormatter("%b-%Y")
-    ax1.xaxis.set_major_formatter(date_form)
-
-    ic("Save image")
-    plot_name = f"{root_path}out/fig/{group_id}_{datatype}_novelty-resonance-transcience.png"
-    fig.savefig(plot_name, bbox_extra_artists=(leg,), bbox_inches='tight')
-    
-    ic("Save figure done\n------------------\n")
-
-
-def main(datatype, DATA_PATH, OUT_PATH, LANG):
+def main(datatype:str, 
+        DATA_PATH:str, 
+        OUT_PATH:str, 
+        LANG:str):
+    """Main function
+    datatype: "posts" or "comments" for Facebook data
+    DATA_PATH: path to data
+    OUT_PATH: path to current directory
+    LANG: two-letter abbreviation to language of dataset, currently only supports Danish ("da")
+    """
     data_path = "/data/datalab/danish-facebook-groups/raw-export/*"
     WINDOW = 3
 
@@ -445,8 +423,6 @@ def main(datatype, DATA_PATH, OUT_PATH, LANG):
     filename = filename[0]
     df = read_json_data(filename)#[:10000]
     df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
-    #group_sizes = df.groupby("group_id").size().reset_index()
-    #group_sizes.to_csv("out/group_sizes.csv", index=False)
     
     if "text" not in df.columns:
         old_column_name = f"{datatype[:-1]}_text"
