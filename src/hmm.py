@@ -7,6 +7,7 @@ import pickle
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import ruptures as rpt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
 
@@ -63,7 +64,7 @@ def bic_hmmlearn(X):
     """
     lowest_bic = np.infty
     bic = []
-    n_states_range = range(1,7)
+    n_states_range = range(1,7) #Might want to change the range
     for n_components in n_states_range:
         hmm_curr = hmm.GaussianHMM(n_components=n_components, covariance_type='diag')
         hmm_curr.fit(X)
@@ -80,7 +81,7 @@ def bic_hmmlearn(X):
             lowest_bic = bic_curr
         best_hmm = hmm_curr
 
-    return (best_hmm, bic)
+    return best_hmm, bic
 
 ##################################################################################
 ### MAIN HMM CODE                                                              ###
@@ -127,14 +128,13 @@ def visualize(X, Z):
     plt.plot(x, savgol_filter(y1, 101, 3), alpha = 0.3)
     plt.plot(x, savgol_filter(y1, 301, 1), 
             color='red',   
-            linewidth=1#,  
-            #linestyle='--' 
+            linewidth=1
             )
 
     plt.savefig("fig1.png")
 
-def vis_test(OUT_PATH, group_id, novelty, resonance, nov_states, res_states):
-    colorlist = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
+def vis_test(OUT_PATH, group_id, novelty, resonance, nov_states, res_states, change_points_nov, change_points_res):
+    palette = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
 
     #### NOVELTY ####
     novelty = savgol_filter(novelty, 401, 1)
@@ -144,13 +144,20 @@ def vis_test(OUT_PATH, group_id, novelty, resonance, nov_states, res_states):
     my_states = list(set(nov_states))
     colors = {}
     for i in my_states:
-        colors[i] = colorlist[i]
+        colors[i] = palette[i]
     ax.scatter(df['time'], df['novelty'], 
                 c=df['state'].map(colors),
                 s=0.2)
+    # Add change points
+    dates_df = df[df["time"].isin(change_points_nov)].reset_index(drop=True)
+    x_coordinates = dates_df['time']
+    y_coordinates = dates_df['novelty']
+    plt.scatter(x_coordinates, y_coordinates, color="none", edgecolor="red",
+            s = 25, linewidths = 1)
+    ax.set(ylim=(0,1))
     filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_novelty.png"
     plt.savefig(filename)
-    ic("DONE")
+    ic("[INFO] Novelty figure done")
 
     #### RESONANCE ####
     resonance = savgol_filter(resonance, 401, 1)
@@ -160,15 +167,31 @@ def vis_test(OUT_PATH, group_id, novelty, resonance, nov_states, res_states):
     my_states = list(set(res_states))
     colors = {}
     for i in my_states:
-        colors[i] = colorlist[i]
+        colors[i] = palette[i]
     ax.scatter(df['time'], df['resonance'], 
                 c=df['state'].map(colors),
                 s=0.2)
+    # Add change points
+    dates_df = df[df["time"].isin(change_points_res)].reset_index(drop=True)
+    x_coordinates = dates_df['time']
+    y_coordinates = dates_df['resonance']
+    plt.scatter(x_coordinates, y_coordinates, color="none", edgecolor="red",
+            s = 25, linewidths = 1) 
+    ax.set(ylim=(-1,1))
     filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_resonance.png"
     plt.savefig(filename)
-    res_states = pd.DataFrame(res_states)
-    res_states.to_csv("res_states.csv", index=False)
-    ic("DONE")
+    ic("[INFO] Resonance figure done")
+
+def change_point_detection(OUT_PATH, datatype, signal):
+    # detection
+    algo = rpt.Pelt(model="rbf").fit(signal)
+    result = algo.predict(pen=10)
+
+    # display
+    rpt.display(signal, result)
+    filename = "cpd.png" #f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_resonance.png"
+    plt.savefig(filename)
+    return result
 
 def main(OUT_PATH, datatype):
     out = load_from_premade_model(OUT_PATH, datatype)    
@@ -177,18 +200,29 @@ def main(OUT_PATH, datatype):
     n_iter = 20
 
     for group_id in group_ids:
-        novelty = savgol_filter(out[group_id]["novelty"], 401, 1)
-        resonance = savgol_filter(out[group_id]["resonance"], 401, 1)
+        ic(group_id)
+        try:
+            novelty = savgol_filter(out[group_id]["novelty"], 401, 1)
+            resonance = savgol_filter(out[group_id]["resonance"], 401, 1)
 
-        Z_nov = everything_hmm(n_components,
-                        n_iter,
-                        novelty)
+            Z_nov = everything_hmm(n_components,
+                            n_iter,
+                            novelty)
 
-        Z_res = everything_hmm(n_components,
-                        n_iter,
-                        resonance)
+            Z_res = everything_hmm(n_components,
+                            n_iter,
+                            resonance)
+            
+            change_points_nov = change_point_detection(OUT_PATH, datatype, novelty)
+            change_points_res = change_point_detection(OUT_PATH, datatype, resonance)
 
-        vis_test(OUT_PATH, group_id, novelty, resonance, Z_nov, Z_res)
+            vis_test(OUT_PATH, group_id, novelty, resonance, Z_nov, Z_res, change_points_nov, change_points_res)
+            ic(f'Done with group: {group_id}')
+            ic('------------------------------')
+        except:
+            ic(f'Failed to process: {group_id}')
+            ic(len(novelty))
+            ic('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
 
 
 if __name__ == '__main__':
