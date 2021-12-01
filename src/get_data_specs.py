@@ -270,7 +270,7 @@ def basics_lineplot(df,
     ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_word_count.png"
+    plot_name = f"{root_path}out/fig/specs/{datatype}_word_count.png"
     fig.savefig(plot_name, bbox_extra_artists=(leg,), bbox_inches='tight')
     
     ic("Save figure done\n------------------\n")
@@ -318,7 +318,7 @@ def posts_per_day_per_group_scatterplot(ori_df,
     ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_posts_per_day_per_group_scatter.png"
+    plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_day_per_group_scatter.png"
     fig.savefig(plot_name, bbox_inches='tight')
     
     ic("Save figure done\n------------------\n")
@@ -354,7 +354,7 @@ def posts_per_group_barplot(ori_df,
     ax1.tick_params(labelsize=15)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_posts_per_group.png"
+    plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_group.png"
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
@@ -389,7 +389,7 @@ def unique_users_per_group_barplot(ori_df,
     ax1.tick_params(labelsize=15)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_unique_users_per_group.png"
+    plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_per_group.png"
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
@@ -462,10 +462,65 @@ def unique_users_over_time_lineplot(ori_df,
     ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_unique_users_over_time.png"
+    plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_over_time.png"
     fig.savefig(plot_name, bbox_inches='tight')
     
     ic("Save figure done\n------------------\n")
+
+def total_lifespan_per_group_pointplot(ori_df, root_path, datatype):
+    """Generates a point plot with starting and ending dates for group activity
+    Args:
+    ori_df: pandas DataFrame, needs column "date" in Datetime format
+    root_path: path of the current directory
+    datatype: "posts" or "comments" for the Facebook data
+
+    Returns:
+    Saves the figure in the local directory
+    """
+    df = ori_df.groupby("group_id").agg({"date": ['min', 'max']}).reset_index()
+    
+    frame = {"group_id": df["group_id"], "date": df["date", "min"]}
+    mindates = pd.DataFrame(data=frame)
+    frame = {"group_id": df["group_id"], "date": df["date", "max"]}
+    maxdates = pd.DataFrame(data=frame)
+    
+    combined = pd.concat([mindates, maxdates])
+    combined["date"] = pd.to_datetime(combined["date"])
+    combined['days'] = (maxdates['date'] - mindates['date']).dt.days
+    combined = combined.sort_values("date").reset_index(drop=True).reset_index()
+
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Line & Scatter plot")
+    ic(len(combined["group_id"]))
+    ax1 = sns.lineplot(x="date", y="days", hue="group_id",
+                        palette = "tab10",
+                        linewidth = 3,
+                        data = combined, legend = False)
+    ax1 = sns.scatterplot(x="date", y="days", hue="group_id",
+                        palette = "tab10",
+                        s = 200,
+                        data = combined, legend = False)
+    
+    ic("Late plot settings")
+    fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
+    
+    ax1.xaxis_date(tz="UTC")
+    date_form = mdates.DateFormatter("%Y")
+    ax1.xaxis.set_major_formatter(date_form)
+
+    #ax1.set(ylim=(min(df["group_id"])-100, max(df["group_id"])+100))
+
+    filename = f"{root_path}res/min_max_dates_per_group.csv"
+    combined.to_csv(filename, index=False)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/specs/{datatype}_total_lifespan_per_group.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    
+    ic("Save figure done\n------------------\n")
+
+
 
 def total_users_over_time(df, root_path, datatype):
 
@@ -527,8 +582,8 @@ def main(filename:str,
     #ic("Posts per group")
     #posts_per_group_barplot(df, root_path, datatype)
     
-    ic("Unique users per group")
-    unique_users_per_group_barplot(df, root_path, datatype)
+    #ic("Unique users per group")
+    #unique_users_per_group_barplot(df, root_path, datatype)
     
     #ic("Unique users over time")
     #unique_users_over_time_lineplot(df, root_path, datatype)
@@ -537,6 +592,9 @@ def main(filename:str,
     #posts_users_scatterplot(df, root_path, datatype)
 
     #ic("Total users over time")
+
+    ic("Toal lifespan per group")
+    total_lifespan_per_group_pointplot(df, root_path, datatype)
     
 
 if __name__ == '__main__':
