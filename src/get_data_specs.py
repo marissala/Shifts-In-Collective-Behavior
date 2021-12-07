@@ -259,7 +259,7 @@ def set_late_plot_settings(fig,
     if if_dates:
         # Define the date format
         ax1.xaxis_date(tz="UTC")
-        date_form = mdates.DateFormatter("%d-%b")
+        date_form = mdates.DateFormatter("%b-%Y")#("%d-%b")
         ax1.xaxis.set_major_formatter(date_form)
 
     ax1.set(ylim=(0, None))
@@ -277,8 +277,9 @@ def set_late_barplot_settings(fig,
     Updated fig and ax1
     """
     ax1.set(xlabel="", ylabel = "")
-    ax1.xaxis.get_label().set_fontsize(40)
+    ax1.xaxis.get_label().set_fontsize(20)
     ax1.yaxis.get_label().set_fontsize(40)
+    ax1.tick_params(labelsize=15)
     return fig, ax1
 
 # columns; 'id', 'group_id', 'user_id', 'user_name', 'message', 'name',
@@ -302,36 +303,44 @@ def basics_lineplot(df,
     Returns:
     Saves the figure in the local directory
     """
+
     ic("Word count")
     df['word_count'] = df.text.str.split().str.len()
+
+    df = df.groupby("date").agg({"id": 'sum', 
+                                'comment_count': 'sum',
+                                'likes_count': 'sum',
+                                'shares_count': 'sum',
+                                'word_count': 'sum'}).reset_index()
 
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
     ic("Line plot")
+    linewidth=2
     ax1 = sns.lineplot(x="date", y="word_count",
                       palette = palette[0], 
                       label = "Words",
-                        linewidth = 3, data = df)
+                        linewidth=linewidth, data = df)
 
     ax1 = sns.lineplot(x="date", y="comment_count",
                       palette = palette[1], 
                       label = "Comments",
-                        linewidth = 3, data = df)
+                        linewidth=linewidth, data = df)
 
     ax1 = sns.lineplot(x="date", y="likes_count",
                       palette = palette[2], 
                       label = "Likes",
-                        linewidth = 3, data = df)
+                        linewidth=linewidth, data = df)
     
     ax1 = sns.lineplot(x="date", y="shares_count",
                       palette = palette[3], 
                       label = "Shares",
-                        linewidth = 3, data = df)
+                        linewidth=linewidth, data = df)
     
     ax1 = sns.lineplot(x="date", y="id",
                       palette = palette[4], 
                       label = "Number of posts",
-                        linewidth = 3, data = df)
+                        linewidth=linewidth, data = df)
     
     ic("Late plot settings")
     fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
@@ -341,11 +350,9 @@ def basics_lineplot(df,
     # set the linewidth of each legend object
     for legobj in leg.legendHandles:
         legobj.set_linewidth(10.0)
-    
-    ax1.xaxis_date(tz="UTC")
-    date_form = mdates.DateFormatter("%Y")
-    ax1.xaxis.set_major_formatter(date_form)
 
+    ax1.tick_params(labelsize=20)
+    
     ic("Save image")
     plot_name = f"{root_path}out/fig/specs/{datatype}_word_count.png"
     fig.savefig(plot_name, bbox_extra_artists=(leg,), bbox_inches='tight')
@@ -375,7 +382,7 @@ def posts_per_day_per_group_scatterplot(ori_df,
     Returns:
     Saves the figure in the local directory
     """
-    df = ori_df.groupby(["date", "group_id"]).agg({"id": 'count'}).reset_index()
+    df = ori_df.groupby(["date", "group_id"]).agg({"id": 'sum'}).reset_index()
     ic(df.head())
 
     ic("Base plot settings")
@@ -384,15 +391,11 @@ def posts_per_day_per_group_scatterplot(ori_df,
 
     ax1 = sns.scatterplot(x="date", y=jitter(df["id"],2), 
                         hue="group_id", 
-                        s = 10,
+                        s = 50,
                         legend=False, data = df)
     
     ic("Late plot settings")
     fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
-    
-    ax1.xaxis_date(tz="UTC")
-    date_form = mdates.DateFormatter("%Y")
-    ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_day_per_group_scatter.png"
@@ -555,7 +558,7 @@ def posts_users_scatterplot(ori_df,
     ax1.set_ylabel("Unique users per group", fontsize = 40)
 
     ic("Save image")
-    plot_name = f"{root_path}out/fig/{datatype}_posts_vs_unique_users.png"
+    plot_name = f"{root_path}out/fig/specs/{datatype}_posts_vs_unique_users.png"
     fig.savefig(plot_name, bbox_inches='tight')
     ic("Save figure done\n------------------\n")
 
@@ -583,10 +586,6 @@ def unique_users_over_time_lineplot(ori_df,
     
     ic("Late plot settings")
     fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
-    
-    ax1.xaxis_date(tz="UTC")
-    date_form = mdates.DateFormatter("%Y")
-    ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_over_time.png"
@@ -631,12 +630,6 @@ def total_lifespan_per_group_pointplot(ori_df, root_path, datatype):
     
     ic("Late plot settings")
     fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
-    
-    ax1.xaxis_date(tz="UTC")
-    date_form = mdates.DateFormatter("%Y")
-    ax1.xaxis.set_major_formatter(date_form)
-
-    #ax1.set(ylim=(min(df["group_id"])-100, max(df["group_id"])+100))
 
     filename = f"{root_path}res/min_max_dates_per_group.csv"
     combined.to_csv(filename, index=False)
@@ -826,17 +819,17 @@ def visualize_posts_per_week(root_path, datatype, df=False):
     
     ax1 = sns.scatterplot(x="date", y="id", hue="group_id",
                       #palette = palette[4], 
-                        s = 100, data = df, legend=False)
+                        s = 50, data = df, legend=False)
     ax1 = sns.lineplot(x="date", y="id", hue="group_id",
                       #palette = palette[4], 
-                        linewidth = 3, data = df, legend=False)
+                        linewidth = 1, data = df, legend=False)
     
     ic("Late plot settings")
     fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
     
     ax1.xaxis_date(tz="UTC")
-    date_form = mdates.DateFormatter("%b-%Y")
-    ax1.xaxis.set_major_formatter(date_form)
+    #date_form = mdates.DateFormatter("%b-%Y")
+    #ax1.xaxis.set_major_formatter(date_form)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_week_per_group_scatterlinepot.png"
