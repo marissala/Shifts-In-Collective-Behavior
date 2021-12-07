@@ -14,6 +14,7 @@ import pandas as pd
 import numpy as np
 import spacy
 import pickle
+import traceback
 from icecream import ic
 
 import gensim.corpora as corpora
@@ -148,6 +149,9 @@ def lda_modelling_per_group(ori_df,
         ic(group_id)
         df = ori_df[ori_df["group_id"] == group_id]
         ic(len(df))
+        if len(df) < 10:
+            ic("DF less than 10 in length")
+            break
         tokens = df["tokens"]
         try:
             if estimate_topics:
@@ -180,23 +184,26 @@ def lda_modelling_per_group(ori_df,
         topic_words = [re.findall(r'([a-zA-Z]+)', list(topics[i])[1]) for i in ori_topic_numbers]
 
         out_topics_group = pd.DataFrame({'group_id': group_id,'topic_nr': ori_topic_numbers, 'topic_words': topic_words})
+        if "created" in df.columns:
+            dates = df["created"]
+        else:
+            dates = df["date"]
         out_best_topic_per_post_group = pd.DataFrame({'group_id': group_id,
                                                       'topic_nr': topic_number,
                                                       'text': df['text'],
-                                                      'date': df["created"]})
+                                                      'date': dates})
         
         out_topics = pd.concat([out_topics, out_topics_group])
         out_best_topic_per_post = pd.concat([out_best_topic_per_post, out_best_topic_per_post_group])
         
-        dates = pd.to_datetime(df["created"])
-        out = export_model_and_tokens_per_group(out, group_id, tm, n, tokens, thetas, dates, OUT_PATH, datatype)
+        out = export_model_and_tokens_per_group(out, group_id, tm, n, tokens, thetas, dates)#, OUT_PATH, datatype)
     
-    ic("[INFO] Writing content to file...")
-    out_topics.to_csv(os.path.join(OUT_PATH, "out", "{}_LDA_topics.csv".format(datatype)), index=False, sep=";")
-    out_best_topic_per_post.to_csv(os.path.join(OUT_PATH, "out", "{}_LDA_posts.csv".format(datatype)), index=False, sep=";")
+    #ic("[INFO] Writing content to file...")
+    #out_topics.to_csv(os.path.join(OUT_PATH, "out", "{}_LDA_topics.csv".format(datatype)), index=False, sep=";")
+    #out_best_topic_per_post.to_csv(os.path.join(OUT_PATH, "out", "{}_LDA_posts.csv".format(datatype)), index=False, sep=";")
     
-    with open(os.path.join(OUT_PATH, "mdl", "topic_dist_per_group_{}.pcl".format(datatype)), "wb") as f:
-        pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
+    #with open(os.path.join(OUT_PATH, "mdl", "topic_dist_per_group_{}.pcl".format(datatype)), "wb") as f:
+    #    pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
     
     return out
 
@@ -362,6 +369,34 @@ def extract_novelty_resonance(df,
     df["rsigma"] = idmdl.rsigma
     return df
 
+def test_windows_extract_novelty_resonance(df, 
+                             theta:list, 
+                             dates:list, 
+                             windows:list):
+    """Calculate novelty, transcience and resonance
+    df: pandas DataFrame
+    theta: list of theta values (list of lists)
+    dates: list of dates
+    window: int of the window size
+
+    Returns:
+    pandas DataFrame with novelty-resonance values
+    """
+    for window in windows:
+        idmdl = InfoDynamics(data = theta, time = dates, window = window)
+        idmdl.novelty(meas = jsd)
+        idmdl.transience(meas = jsd)
+        idmdl.resonance(meas = jsd)
+        
+        window = str(window)
+        df[f"novelty{window}"] = idmdl.nsignal
+        #df[f"transience{window}"] = idmdl.tsignal
+        df[f"resonance{window}"] = idmdl.rsignal
+        #df[f"nsigma{window}"] = idmdl.nsigma
+        #df[f"tsigma{window}"] = idmdl.tsigma
+        #df[f"rsigma{window}"] = idmdl.rsigma
+    return df
+
 def export_novelty_per_group(out:dict,
                             id_nr:str,
                             novelty:list,
@@ -408,21 +443,31 @@ def main(datatype:str,
     LANG: two-letter abbreviation to language of dataset, currently only supports Danish ("da")
     """
     data_path = "/data/datalab/danish-facebook-groups/raw-export/*"
-    WINDOW = 3
+    WINDOW = 30
 
     logging.info("----- New iteration -----")
 
     ic("[INFO] Reading in the data")
     logging.info("[INFO] Reading in the data")
+    ## SAMPLE DATA
     df = pd.read_table(f"tmp/tmp_df.csv", 
                         encoding='utf-8',
                         sep=";",
                         nrows=5000)
+    ## ORIGINAL WHOLE DATA
     files = glob.glob(data_path)
     filename = [i for i in files if datatype in i]
     filename = filename[0]
-    df = read_json_data(filename)#[:10000]
-    df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
+    #df = read_json_data(filename)#[:10000]
+    #df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
+    ## WEEKLY COMPLETE DATA, DOWNSAMPLED
+    filename = f"{OUT_PATH}res/weekly_complete_daily_downsampled.csv"
+    df = pd.read_csv(filename, sep=";")
+    some_groups = df.group_id.unique()
+    ic(some_groups)
+    df = df[df["group_id"].isin(some_groups)]
+    ic(df.head())
+    ic(len(df))
     
     if "text" not in df.columns:
         old_column_name = f"{datatype[:-1]}_text"
@@ -432,8 +477,12 @@ def main(datatype:str,
         except:
             df["text"] = df[old_column_name]
 
+    if "created" in df.columns:
+        df["date"] = pd.to_datetime(df["created"])
+    else:
+        df["date"] = pd.to_datetime(df["date"])
+
     df['word_count'] = df.text.str.split().str.len()
-    df["date"] = pd.to_datetime(df["created"])
     df = df.sort_values("date")
     
     ic("[INFO] Prepare data...")
@@ -482,7 +531,8 @@ def main(datatype:str,
                             yz=yz,
                             OUT_PATH=OUT_PATH,
                             group_id=group_id,
-                            datatype=datatype)
+                            datatype=datatype,
+                            window=str(WINDOW))
 
             export_novelty_per_group(nr_out,
                             group_id,
@@ -490,12 +540,139 @@ def main(datatype:str,
                             resonance=nr_df["resonance"])
 
             del nr_df
-        except:
+        except Exception:
             ic(f"[INFO] Failed to process {group_id}")
             ic(len(df))
+            print(traceback.format_exc())
             continue
     with open(os.path.join(OUT_PATH, "out", "novelty-resonance", "{}_novelty-resonance.pcl".format(datatype)), "wb") as f:
         pickle.dump(nr_out, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    ic("[INFO] PIPELINE FINISHED")
+    logging.info("----- Finished iteration -----")
+
+def generate_simple_test_df(n, begin_date):
+    csiti = 23454
+    units = list(range(0,n))
+    texts = ["a word wow"] * n
+    comment_count= [1]*n
+    likes_count = [2]*n
+    shares_count = [3]*n
+
+    test_dataset = pd.DataFrame({'group_id':csiti, 
+                   'id':units,
+                   'text':texts,
+                   'comment_count':comment_count,
+                   'likes_count':likes_count,
+                   'shares_count':shares_count,
+                   'created':pd.date_range(begin_date, periods=n)})
+    
+    return test_dataset
+
+def test_windows(datatype:str, 
+        DATA_PATH:str, 
+        OUT_PATH:str, 
+        LANG:str):
+    """Main function
+    datatype: "posts" or "comments" for Facebook data
+    DATA_PATH: path to data
+    OUT_PATH: path to current directory
+    LANG: two-letter abbreviation to language of dataset, currently only supports Danish ("da")
+    """
+    data_path = "/data/datalab/danish-facebook-groups/raw-export/*"
+    WINDOW = 3
+    windows = [1,3,7,30]
+
+    logging.info("----- New iteration -----")
+
+    ic("[INFO] Reading in the data")
+    logging.info("[INFO] Reading in the data")
+    ## DAILY COMPLETE DATA, DOWNSAMPLED
+    #filename = f"{OUT_PATH}res/daily_complete_data.csv"
+    #df = pd.read_csv(filename, sep=";")
+    df = pd.read_csv('{}tmp/tmp_df.csv'.format(OUT_PATH))
+    ic(df.head())
+    ic(len(df))
+    
+    if "text" not in df.columns:
+        old_column_name = f"{datatype[:-1]}_text"
+        try:
+            df["text"] = df["message"]
+            df = df.drop("message", axis=1)
+        except:
+            df["text"] = df[old_column_name]
+
+    df['word_count'] = df.text.str.split().str.len()
+    df["created"] = df["date"]
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
+    
+    ic("[INFO] Prepare data...")
+    logging.info("[INFO] Prepare data...")
+    tic = time.perf_counter()
+    tokens, df = prepare_data(df, LANG)
+    toc = time.perf_counter()
+    time_info = f"Prepared the data in {toc - tic:0.4f} seconds"
+    ic(time_info)
+    logging.info(f"Prepared the data in {toc - tic:0.4f} seconds")
+
+    ic("[INFO] LDA modelling...")
+    file_exists=False
+    if file_exists:
+        out = load_from_premade_model(OUT_PATH, datatype)
+    else:
+        TOPIC_TUNE = [10, 15]#,40,50]
+        logging.info("[INFO] LDA modelling...")
+        tic = time.perf_counter()
+        out = lda_modelling_per_group(df, tokens,
+                            OUT_PATH,
+                            TOPIC_TUNE,
+                            estimate_topics=True)
+        toc = time.perf_counter()
+        time_info = f"Finished LDA modelling in {toc - tic:0.4f} seconds"
+        ic(time_info)
+        logging.info(f"Finished LDA modelling in {toc - tic:0.4f} seconds")
+    
+    group_ids = list(set(df["group_id"]))
+    ic(type(out["group_id"][0]))
+    
+    ic("[INFO] extracting novelty and resonance...")
+    nr_out = {}
+    for group_id in group_ids:
+        sample_df = df[df["group_id"] == group_id].reset_index(drop=True)
+        sample_df = sample_df.sort_values("date")
+        try:
+            #group_id = str(int(group_id))
+            ic(type(out[group_id][0]))
+            nr_df = test_windows_extract_novelty_resonance(sample_df, out[group_id]["theta"], out[group_id]["dates"], windows)
+            ic("[INFO] Get novelty, resonance, beta1")
+            time_var, novelty, resonance, beta1, xz, yz = pV.extract_adjusted_main_parameters(nr_df, WINDOW)
+            out = pV.test_windows_extract_adjusted_main_parameters(nr_df, windows)
+            
+            for window in windows:
+                window = str(window)
+                pV.plot_initial_figures_facebook(novelty=nr_df[f"novelty{window}"],
+                                resonance=nr_df[f"resonance{resonance}"],
+                                xz=xz,
+                                yz=yz,
+                                OUT_PATH=OUT_PATH,
+                                group_id=group_id,
+                                datatype=datatype,
+                                window=window)
+
+            #export_novelty_per_group(nr_out,
+            #                group_id,
+            #                novelty=nr_df["novelty"],
+            #                resonance=nr_df["resonance"])
+
+            del nr_df
+        except Exception:
+            ic(f"[INFO] Failed to process {group_id}")
+            ic(len(df))
+            ic(traceback.format_exc())
+            continue
+    #with open(os.path.join(OUT_PATH, "out", "novelty-resonance", "{}_novelty-resonance.pcl".format(datatype)), "wb") as f:
+    #    pickle.dump(nr_out, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ic("[INFO] PIPELINE FINISHED")
     logging.info("----- Finished iteration -----")
@@ -512,4 +689,5 @@ if __name__ == '__main__':
     LANG = 'da'
 
     main(datatype, DATA_PATH, OUT_PATH, LANG)
+    #test_windows(datatype, DATA_PATH, OUT_PATH, LANG)
     
