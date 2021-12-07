@@ -12,6 +12,7 @@ from icecream import ic
 from re import match
 import jsonlines
 import pprint
+from datetime import datetime
 
 import seaborn as sns; sns.set()
 import pyplot_themes as themes
@@ -21,6 +22,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.cbook.deprecation import MatplotlibDeprecationWarning
 
+##################################################################################
+### READ DATA                                                                  ###
+##################################################################################
 
 def read_tmp_data(data_path: str):
     """Reads a temporary smaller dataset for testing
@@ -77,6 +81,10 @@ def read_data(filename: str,
         df["text"] = df["message"]
     return df
 
+##################################################################################
+### DOWNSAMPLE                                                                 ###
+##################################################################################
+
 def downsample(df,
             frequency='1T',
             if_list=False):
@@ -84,14 +92,15 @@ def downsample(df,
     Args:
     df: pandas DataFrame with columns "date" and "text"
     frequency: time interval for downsampling, default 1T - creates 1min timebins
+    if_list: boolean, when texts should be aggregated as lists, drop rest of columns
 
     Returns:
     Downsampled pandas DataFrame
     """
     df = df.dropna().reset_index(drop=True)
     df["text"] = df["text"].astype(str)
-    print(len(df["text"]))
-    print(len(df["date"]))
+    ic(len(df["text"]))
+    ic(len(df["date"]))
     df["text"] = pd.Series(df["text"])
     df["date"] = pd.Series(df["date"])
 
@@ -109,6 +118,66 @@ def downsample(df,
     df["date"] = df["date"].astype(str)
     
     return df
+
+def downsample_per_group(ori_df,
+            frequency='1T',
+            if_list=False):
+    """Downsamples based on date, concatenates texts. Per group.
+    Args:
+    ori_df: pandas DataFrame with columns "date" and "text"
+    frequency: time interval for downsampling, default 1T - creates 1min timebins
+
+    Returns:
+    Downsampled pandas DataFrame
+    """
+    group_ids = list(set(ori_df["group_id"].dropna()))
+    ic(len(group_ids))
+
+    resampled = pd.DataFrame()
+    complete_groups = []
+    incomplete_groups = []
+    
+    ic("Looping over the groups")
+    for group_id in group_ids:
+        df = ori_df[ori_df["group_id"] == group_id].reset_index(drop=True)
+        df["text"] = df["text"].astype(str)
+            
+        df["text"] = pd.Series(df["text"])
+        df["date"] = pd.Series(df["date"])
+
+        df.index = pd.to_datetime(df["date"])
+        df = df.drop("date", axis = 1)
+            
+        df = df.resample(frequency).agg({"text": ' '.join, 
+                                        "id": 'count', 
+                                        "user_id": 'nunique',
+                                        "comment_count": 'sum', 
+                                        "likes_count": 'sum', 
+                                        "shares_count": 'sum'})
+        df = df.reset_index(col_fill = "date")
+            
+        df["text"] = df["text"].astype(str)
+        df["date"] = df["date"].astype(str)
+
+        df["group_id"] = group_id
+
+        df.index = pd.to_datetime(df["date"]).dt.date
+        missing = df[df.id == 0].index
+        df = df.drop(df[df.id == 0].index)
+
+        if len(missing) == 0:
+            resampled = resampled.append(df)
+            complete_groups.append(str(int(group_id)))
+        else:
+            incomplete_groups.append(str(int(group_id)))
+    
+    ic(complete_groups)
+    ic(incomplete_groups)
+    return resampled, complete_groups, incomplete_groups
+
+##################################################################################
+### SAVE DATA SPECS                                                            ###
+##################################################################################
 
 # Does not work with the current config of the dataset
 def save_data_specs(datatype: str,
@@ -137,6 +206,10 @@ def save_data_specs(datatype: str,
                             'Max': df.groupby("privacy")["word_count"].max()}
     with open(f'out/{datatype}_specs.json', 'w', encoding='utf-8') as f:
         json.dump(str(df_specs), f, ensure_ascii=False, indent=4)
+
+##################################################################################
+### PLOT SETTINGS                                                              ###
+##################################################################################
 
 def set_base_plot_settings(fontsize: int, 
                            if_palette: bool):
@@ -211,6 +284,10 @@ def set_late_barplot_settings(fig,
 # columns; 'id', 'group_id', 'user_id', 'user_name', 'message', 'name',
 #                       'description', 'link', 'application', 'comment_count', 'likes_count',
 #                       'shares_count', 'picture', 'story', 'created', 'updated', 'word_count'
+
+##################################################################################
+### ALL VISUALS FUNCTIONS                                                      ###
+##################################################################################
 
 def basics_lineplot(df, 
                     root_path:str, 
@@ -336,8 +413,9 @@ def posts_per_group_barplot(ori_df,
     Saves the figure in the local directory
     """
     df = ori_df.groupby("group_id").agg({"id": 'nunique'}).reset_index()
+    n = 50
     ic(df.describe()) # Report this in the paper!
-    df = df.sort_values('id', ascending=False)[0:50]
+    df = df.sort_values('id', ascending=False)[0:n]
 
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
@@ -352,6 +430,30 @@ def posts_per_group_barplot(ori_df,
     fig, ax1 = set_late_barplot_settings(fig, ax1)
 
     ax1.tick_params(labelsize=15)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_{n}_groups.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    ic("Save figure done\n------------------\n")
+
+    df = ori_df.groupby("group_id").agg({"id": 'nunique'}).reset_index()
+    ic(df.describe()) # Report this in the paper!
+    df = df.sort_values('id', ascending=False)
+
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Bar plot")
+    df["group_id"] = df["group_id"].astype(int).astype(str)
+    ax1 = sns.barplot(x="group_id", y="id",
+                      color = palette[7], 
+                      #order = df.sort_values('id', ascending=False).group_id,
+                      data = df)
+
+    ic("Late plot settings")
+    fig, ax1 = set_late_barplot_settings(fig, ax1)
+
+    ax1.tick_params(labelsize=15)
+    ax1.set_xticklabels(ax1.get_xticklabels(),rotation = 50)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_group.png"
@@ -372,7 +474,8 @@ def unique_users_per_group_barplot(ori_df,
     """
     df = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
     ic(df.describe()) #Report this in the paper!
-    df = df.sort_values("user_id", ascending=False)[:50]
+    n=50
+    df = df.sort_values("user_id", ascending=False)[:n]
 
     ic("Base plot settings")
     fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
@@ -387,6 +490,30 @@ def unique_users_per_group_barplot(ori_df,
     fig, ax1 = set_late_barplot_settings(fig, ax1)
 
     ax1.tick_params(labelsize=15)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_per_{n}_groups.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    ic("Save figure done\n------------------\n")
+
+    df = ori_df.groupby("group_id").agg({"user_id": 'nunique'}).reset_index()
+    ic(df.describe()) #Report this in the paper!
+    df = df.sort_values("user_id", ascending=False)
+
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Bar plot")
+    df["group_id"] = df["group_id"].astype(int).astype(str)
+    ax1 = sns.barplot(x="group_id", y="user_id",
+                      color = palette[7], 
+                      #order = df.sort_values('user_id', ascending=False).group_id,
+                      data = df)
+
+    ic("Late plot settings")
+    fig, ax1 = set_late_barplot_settings(fig, ax1)
+
+    ax1.tick_params(labelsize=15)
+    ax1.set_xticklabels(ax1.get_xticklabels(),rotation = 50)
 
     ic("Save image")
     plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_per_group.png"
@@ -521,11 +648,6 @@ def total_lifespan_per_group_pointplot(ori_df, root_path, datatype):
     ic("Save figure done\n------------------\n")
 
 
-
-def total_users_over_time(df, root_path, datatype):
-
-    return 0
-
 def output_descriptive_df(df):
     """Output a file that keeps numeric data only needed for visuals
     Args:
@@ -557,14 +679,15 @@ def main(filename:str,
     #output_descriptive_df(df)
     
     # Read in dataset with just numeric data for visuals
-    ic("[INFO] Read in saved descriptive data")
-    df = pd.read_csv("/home/commando/marislab/facebook-posts/res/descriptive_only.csv")
-    ic(df.columns)
-    
-    if downsample_frequency:
-        df["date"] = pd.to_datetime(df["created"], utc=True)
-        df = downsample(df, frequency=downsample_frequency)
-        df.to_csv("ds.csv", index=False)
+    # Check if this data has the same length and number of groups as the others did
+    #ic("[INFO] Read in saved descriptive data")
+    #df = pd.read_csv("/home/commando/marislab/facebook-posts/res/descriptive_only.csv")
+    #ic(df.columns)
+
+    ## WEEKLY COMPLETE DATA, DOWNSAMPLED
+    root_path = "/home/commando/marislab/facebook-posts/"
+    filename = f"{root_path}res/weekly_complete_daily_downsampled.csv"
+    df = pd.read_csv(filename, sep=";")
     
     df["date"] = pd.to_datetime(df["date"], utc=True)
 
@@ -573,29 +696,153 @@ def main(filename:str,
     #small_df = df[df["group_id"].isin([3297])]
     
     ic("Visualize:")
-    #ic("Basic lineplot")
-    #basics_lineplot(df, root_path, datatype)
+    ic("Basic lineplot")
+    basics_lineplot(df, root_path, datatype)
 
-    #ic("Posts per day per group")
-    #posts_per_day_per_group_scatterplot(df, root_path, datatype)
+    ic("Posts per day per group")
+    posts_per_day_per_group_scatterplot(df, root_path, datatype)
     
-    #ic("Posts per group")
-    #posts_per_group_barplot(df, root_path, datatype)
+    ic("Posts per group")
+    posts_per_group_barplot(df, root_path, datatype)
     
-    #ic("Unique users per group")
-    #unique_users_per_group_barplot(df, root_path, datatype)
+    ic("Unique users per group")
+    unique_users_per_group_barplot(df, root_path, datatype)
     
-    #ic("Unique users over time")
-    #unique_users_over_time_lineplot(df, root_path, datatype)
+    ic("Unique users over time")
+    unique_users_over_time_lineplot(df, root_path, datatype)
     
-    #ic("Posts vs Users: scatterplot")
-    #posts_users_scatterplot(df, root_path, datatype)
-
-    #ic("Total users over time")
+    ic("Posts vs Users: scatterplot")
+    posts_users_scatterplot(df, root_path, datatype)
 
     ic("Toal lifespan per group")
     total_lifespan_per_group_pointplot(df, root_path, datatype)
+
+def generate_numeric_test_df(n, begin_date):
+    csiti = 23454
+    units = list(range(0,n))
+    texts = ["a word wow"] * n
+    comment_count= [1]*n
+    likes_count = [2]*n
+    shares_count = [3]*n
+
+    test_dataset = pd.DataFrame({'group_id':csiti, 
+                   'id':units,
+                   'text':texts,
+                   'comment_count':comment_count,
+                   'likes_count':likes_count,
+                   'shares_count':shares_count,
+                   'created':pd.date_range(begin_date, periods=n)})
     
+    return test_dataset
+
+def weekly_daily_create_grouplists(filename, from_originals, downsample_frequency, root_path):
+    """This removes irrelevant/broken data and downsamples to weekly sets and then outputs the group_ids that
+        post every single week
+    """
+    df = read_data(filename, from_originals)
+
+    # Use a test dataset instead
+    #df = generate_numeric_test_df(n=30, begin_date='2010-10-05')
+    ic(df.head())
+    
+    ic("Original length", len(df))
+
+    filename = f"{root_path}res/less_than_7.txt"
+    with open(filename) as f:
+        lines = f.readlines()
+        group_ids_less_than_7 = [int(line.rstrip()) for line in lines]
+    
+    df = df[~df["group_id"].isin(group_ids_less_than_7)].reset_index(drop=True)
+    ic("Removed groups less than 7 days", len(df), len(df.group_id.unique()))
+
+    df["day"] = pd.to_datetime(df["created"]).dt.date
+    day_fb_groups_were_introduced = pd.to_datetime("2010-10-06").date()
+    df = df[df["day"] > day_fb_groups_were_introduced].reset_index(drop=True)
+    ic("Removed posts from before FB groups were launched", len(df), len(df.group_id.unique()))
+    ic(df.head())
+
+    #out = df[df["year"] < 2010]
+    #out.to_csv("pre2010_data.csv", index=False, sep=";")
+    
+    #df = df.drop([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+    if downsample_frequency:
+        df["date"] = pd.to_datetime(df["created"], utc=True)
+        df, complete_groups, incomplete_groups = downsample_per_group(df, frequency=downsample_frequency)
+        
+        filename = f"{root_path}res/weekly_complete_group_ids.txt"
+        with open(filename, 'w') as file:
+            file.write('\n'.join(str(group) for group in complete_groups))
+        filename = f"{root_path}res/weekly_incomplete_group_ids.txt"
+        with open(filename, 'w') as file:
+            file.write('\n'.join(str(group) for group in incomplete_groups))
+        filename = f"{root_path}res/weekly_downsampled.csv"
+        df.to_csv(filename, index=False, sep=";")
+        ic(len(df))
+
+    #visualize_posts_per_week(df, root_path, datatype)
+
+def generate_analyzed_df(filename, from_originals, downsample_frequency, root_path):
+    """This uses the previously found weekly groups, but downsamples the df to dates, 
+        all non-posted dates will just have 0s.
+    """
+    df = read_data(filename, from_originals)
+
+    # Use a test dataset instead
+    #df = generate_numeric_test_df(n=30, begin_date='2010-10-05')
+    ic(df.head())
+    
+    ic("Original length", len(df), len(df.group_id.unique()))
+
+    filename = f"{root_path}res/weekly_complete_group_ids.txt"
+    with open(filename) as f:
+        lines = f.readlines()
+        weekly_complete_groups = [int(line.rstrip()) for line in lines]
+    
+    df = df[df["group_id"].isin(weekly_complete_groups)].reset_index(drop=True)
+    ic("Removed incomplete groups", len(df), len(df.group_id.unique()))
+    
+    #df = df.drop([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+    if downsample_frequency:
+        df["date"] = pd.to_datetime(df["created"], utc=True)
+        df, complete_groups, incomplete_groups = downsample_per_group(df, frequency=downsample_frequency)
+        
+        filename = f"{root_path}res/weekly_complete_daily_downsampled.csv"
+        df.to_csv(filename, index=False, sep=";")
+        ic(len(df))
+
+    #visualize_posts_per_week(df, root_path, datatype)
+
+
+def visualize_posts_per_week(root_path, datatype, df=False):
+    if not df:
+        filename = f"{root_path}res/weekly_downsampled.csv"
+        df = pd.read_csv(filename, sep=";")
+    
+    df["date"] = pd.to_datetime(df["date"])
+    ic("[INFO] Visualize")
+    ic("Base plot settings")
+    fig, ax1, palette = set_base_plot_settings(fontsize=30, if_palette = True)
+    ic("Line plot")
+    
+    ax1 = sns.scatterplot(x="date", y="id", hue="group_id",
+                      #palette = palette[4], 
+                        s = 100, data = df, legend=False)
+    ax1 = sns.lineplot(x="date", y="id", hue="group_id",
+                      #palette = palette[4], 
+                        linewidth = 3, data = df, legend=False)
+    
+    ic("Late plot settings")
+    fig, ax1 = set_late_plot_settings(fig, ax1, if_dates = True)
+    
+    ax1.xaxis_date(tz="UTC")
+    date_form = mdates.DateFormatter("%b-%Y")
+    ax1.xaxis.set_major_formatter(date_form)
+
+    ic("Save image")
+    plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_week_per_group_scatterlinepot.png"
+    fig.savefig(plot_name, bbox_inches='tight')
+    
+    ic("DONE")
 
 if __name__ == '__main__':
     data_path = "/data/datalab/danish-facebook-groups/raw-export/*"
@@ -604,7 +851,7 @@ if __name__ == '__main__':
 
     from_originals = True
     datatype = "posts"
-    downsample_frequency = '1M'
+    downsample_frequency = '1D'
     
     files = glob.glob(data_path)
     filename = [i for i in files if datatype in i]
@@ -612,5 +859,8 @@ if __name__ == '__main__':
     ic(filename)
     
     main(filename, from_originals, datatype)
-    
+    #weekly_daily_create_grouplists(filename, from_originals, downsample_frequency, root_path)
+    #generate_analyzed_df(filename, from_originals, downsample_frequency, root_path)
+
+    visualize_posts_per_week(root_path, datatype)
     ic("DONE")
