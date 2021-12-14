@@ -6,6 +6,9 @@ import pandas as pd
 import numpy as np
 from icecream import ic
 
+from scipy.signal import savgol_filter
+
+import networkx as nx
 import seaborn as sns; sns.set()
 import pyplot_themes as themes
 import datetime as dt
@@ -84,7 +87,7 @@ class PlotSettings:
         return fig, ax1
 
     @staticmethod
-    def lateBarplotSettings(fig, 
+    def lateBarPlotSettings(fig, 
                                 ax1):
         """Sets settings for barplots after plotting. 
         Removes labels on x and y axis
@@ -128,7 +131,7 @@ class PlotSettings:
         return values + np.random.normal(j,0.1,values.shape)
 
 ##################################################################################
-### ALL VISUALS FUNCTIONS                                                      ###
+### VISUALS FUNCTIONS FOR DESCRIBING DF                                        ###
 ##################################################################################
 
 class PlotVisuals:
@@ -194,7 +197,8 @@ class PlotVisuals:
     @staticmethod
     def posts_per_day_per_group_scatterplot(ori_df, 
                                             root_path:str, 
-                                            datatype:str):
+                                            datatype:str,
+                                            comment:str):
         """Generates a scatter plot with posts per day
         Args:
         ori_df: pandas DataFrame, needs column "date" in Datetime format
@@ -236,7 +240,8 @@ class PlotVisuals:
     @staticmethod
     def posts_per_group_barplot(ori_df, 
                                 root_path:str, 
-                                datatype:str):
+                                datatype:str,
+                                comment:str):
         """Generates a bar plot with posts per group
         Args:
         ori_df: pandas DataFrame
@@ -300,7 +305,8 @@ class PlotVisuals:
     @staticmethod
     def unique_users_per_group_barplot(ori_df, 
                                     root_path:str, 
-                                    datatype:str):
+                                    datatype:str,
+                                    comment:str):
         """Generates a bar plot with unique users per group
         Args:
         ori_df: pandas DataFrame
@@ -364,7 +370,8 @@ class PlotVisuals:
     @staticmethod
     def posts_users_scatterplot(ori_df, 
                                 root_path:str, 
-                                datatype:str):
+                                datatype:str,
+                                comment:str):
         """Generates a scatter plot with posts vs users
         Args:
         ori_df: pandas DataFrame
@@ -409,7 +416,8 @@ class PlotVisuals:
     @staticmethod
     def unique_users_over_time_lineplot(ori_df, 
                                         root_path:str, 
-                                        datatype:str):
+                                        datatype:str,
+                                        comment:str):
         """Generates a line plot with unique users over time
         Args:
         ori_df: pandas DataFrame, needs column "date" in Datetime format
@@ -441,7 +449,10 @@ class PlotVisuals:
         ic("Save figure done\n------------------\n")
 
     @staticmethod
-    def total_lifespan_per_group_pointplot(ori_df, root_path, datatype):
+    def total_lifespan_per_group_pointplot(ori_df, 
+                                            root_path:str, 
+                                            datatype:str,
+                                            comment:str):
         """Generates a point plot with starting and ending dates for group activity
         Args:
         ori_df: pandas DataFrame, needs column "date" in Datetime format
@@ -487,7 +498,10 @@ class PlotVisuals:
         ic("Save figure done\n------------------\n")
 
     @staticmethod
-    def visualize_posts_per_week(root_path, datatype, df=False):
+    def visualize_posts_per_week(root_path, 
+                                datatype,
+                                comment:str,
+                                df=False):
         if not df:
             filename = f"{root_path}res/weekly_downsampled.csv"
             df = pd.read_csv(filename, sep=";")
@@ -517,3 +531,165 @@ class PlotVisuals:
         fig.savefig(plot_name, bbox_inches='tight')
         
         ic("DONE")
+
+##################################################################################
+### VISUALS FUNCTIONS FOR HMMs and CPD                                         ###
+##################################################################################
+
+class PlotHMMCPD:
+    @staticmethod
+    def jitter(values,j):
+        """Creates slightly altered numbers to jitter them in a scatterplot
+        Args:
+        values: list of values to jitter (column from DataFrame on y-axis)
+        j: dimensions
+
+        Returns:
+        jittered values
+        """
+        return values + np.random.normal(j,0.1,len(values))
+
+    @staticmethod
+    def incr(lst:list, i:int, type:str):
+        """List of two elements, increase one number
+        """
+        el1 = lst[0]
+        el2 = lst[1]
+        if type == "1st":
+            return [el1+i, el2] #[x+i for x in lst]
+        elif type == "2nd":
+            return [el1, el2+i]
+        elif type == "both":
+            el1 = PlotHMMCPD.jitter([el1],i)[0]
+            el2 = PlotHMMCPD.jitter([el1],i)[0]
+            return [el1, el2]
+
+    @staticmethod
+    def visualize(X, Z):
+        ic(len(X))
+        x = np.linspace(0, len(X), num=len(X))
+        ic(len(x))
+        y1 = X
+        #y2 = Z
+
+        plt.figure(num = 3, figsize=(8, 5))
+        # larger window length means smaller signal
+        plt.plot(x, savgol_filter(y1, 101, 3), alpha = 0.3)
+        plt.plot(x, savgol_filter(y1, 301, 1), 
+                color='red',   
+                linewidth=1
+                )
+
+        plt.savefig("fig1.png")
+
+    @staticmethod
+    def visualize_HMM(OUT_PATH, comment, group_id, novelty, resonance, nov_states, res_states):
+        palette = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
+
+        #### NOVELTY ####
+        df = pd.DataFrame(dict(novelty=novelty, state=nov_states)).reset_index()
+        df.columns = ["time", "novelty", "state"]
+        fig, ax = plt.subplots()
+        my_states = list(set(nov_states))
+        colors = {}
+        for i in my_states:
+            colors[i] = palette[i]
+        ax.scatter(df['time'], df['novelty'], 
+                    c=df['state'].map(colors),
+                    s=0.2)
+        ax.set(ylim=(0,1))
+        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_novelty_{comment}.png"
+        plt.savefig(filename)
+        ic("[INFO] Novelty figure done")
+
+        #### RESONANCE ####
+        df = pd.DataFrame(dict(resonance=resonance, state=res_states)).reset_index()
+        df.columns = ["time", "resonance", "state"]
+        fig, ax = plt.subplots()
+        my_states = list(set(res_states))
+        colors = {}
+        for i in my_states:
+            colors[i] = palette[i]
+        ax.scatter(df['time'], df['resonance'], 
+                    c=df['state'].map(colors),
+                    s=0.2)
+        ax.set(ylim=(-1,1))
+        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_resonance_{comment}.png"
+        plt.savefig(filename)
+        ic("[INFO] Resonance figure done")
+
+    @staticmethod
+    def visualize_HMM_CPD(OUT_PATH, comment, group_id, observ_name, observations, states, change_points):
+        palette = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
+
+        df = pd.DataFrame(dict(observation=observations, state=states)).reset_index()
+        df.columns = ["time", "observation", "state"]
+        fig, ax = plt.subplots()
+        my_states = list(set(states))
+        colors = {}
+        for i in my_states:
+            colors[i] = palette[i]
+        ax.scatter(df['time'], df['observation'], 
+                    c=df['state'].map(colors),
+                    s=2)
+
+        ax = sns.lineplot(df['time'], df['observation'], 
+                    #c=df['state'].map(colors),
+                    linewidth=0.5, alpha=0.3)
+
+        # Add change points
+        dates_df = df[df["time"].isin(change_points)].reset_index(drop=True)
+        x_coordinates = dates_df['time']
+        y_coordinates = dates_df['observation']
+        plt.scatter(x_coordinates, y_coordinates, color="none", edgecolor="red",
+                s = 25, linewidths = 1)
+        #ax.set(ylim=(0,1))
+        group_id = str(int(group_id))
+        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_{observ_name}_{comment}.png"
+        plt.savefig(filename)
+        ic("[INFO] HMM CPD figure done", observ_name)
+        
+        ic(df)
+        ic(dates_df)
+
+    @staticmethod
+    def visualize_HMM_model(observ_name, transition_matrix, states, nr_of_states, OUT_PATH, group_id, comment):
+        """Based on this beautiful guide with fixes: https://vknight.org/unpeudemath/code/2015/11/15/Visualising-markov-chains.html
+        """
+        palette = ["#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
+
+        G = nx.MultiDiGraph()
+        labels={}
+        edge_labels={}
+        i_list = []
+        j_list = []
+
+        #transition_matrix = transition_matrix * nr_of_states
+        #ic(transition_matrix)
+
+        for i, origin_state in enumerate(states):
+            i = origin_state[0]
+            for j, destination_state in enumerate(states):
+                j = destination_state[1]
+
+                rate = transition_matrix[i][j]
+                if rate > 0.01:
+                    G.add_edge(origin_state,
+                            destination_state,
+                            weight=rate,
+                            label="{:.02f}".format(rate))
+                    edge_labels[(origin_state, destination_state)] = label="{:.02f}".format(rate)
+
+        plt.figure(figsize=(14,7))
+        node_size = 400
+        pos = {state:list(state) for state in states}
+        nx.draw_networkx_edges(G,pos,width=1.0,alpha=0.5)
+        pos2 = {state: PlotHMMCPD.incr(list(state),0.05,"2nd") for state in states}
+        nx.draw_networkx_labels(G,pos,font_weight=5, font_color="blue")
+        pos2 = {state: list(PlotHMMCPD.jitter(list(state),0.00005)) for state in states}
+        nx.draw_networkx_edge_labels(G, pos2, edge_labels)
+        plt.axis('off')
+
+        group_id = str(int(group_id))
+        filename = f"{OUT_PATH}out/fig/hmm_model/{group_id}_HMM_model_{nr_of_states}_states_{observ_name}_{comment}.png"
+        plt.savefig(filename, dpi=150, bbox_inches='tight')
