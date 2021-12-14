@@ -28,10 +28,6 @@ from read_data import readData
 from downsampling import downsample, downsampleGroup
 from visualize import PlotSettings, PlotVisuals
 
-##################################################################################
-### SAVE DATA SPECS                                                            ###
-##################################################################################
-
 # Does not work with the current config of the dataset
 def save_data_specs(datatype: str,
                     df):
@@ -124,7 +120,6 @@ def weekly_daily_create_grouplists(filename, from_originals, downsample_frequenc
     #out = df[df["year"] < 2010]
     #out.to_csv("pre2010_data.csv", index=False, sep=";")
     
-    #df = df.drop([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
     if downsample_frequency:
         df["date"] = pd.to_datetime(df["created"], utc=True)
         df, complete_groups, incomplete_groups = downsampleGroup(df, frequency=downsample_frequency)
@@ -139,7 +134,6 @@ def weekly_daily_create_grouplists(filename, from_originals, downsample_frequenc
         df.to_csv(filename, index=False, sep=";")
         ic(len(df))
 
-    #visualize_posts_per_week(df, root_path, datatype)
 
 def generate_analyzed_df(filename, from_originals, downsample_frequency, root_path):
     """This uses the previously found weekly groups, but downsamples the df to dates, 
@@ -201,18 +195,15 @@ def main(filename:str,
     datatype: "posts" or "comments" for Facebook data
     downsample_frequency: size of time bins if downsampling is desired
     """
-    ic(datatype)
     # Generate dataset with just numeric data needed for visuals
     #df = readData(filename, from_originals)
     #df["date"] = pd.to_datetime(df["created"], utc=True)
     #output_descriptive_df(df)
     
     # Read in dataset with just numeric data for visuals
-    # Check if this data has the same length and number of groups as the others did
     #ic("[INFO] Read in saved descriptive data")
     #df = pd.read_csv("/home/commando/marislab/facebook-posts/res/descriptive_only.csv")
     #ic(df.columns)
-    #df = df[df["group_id"].isin([3274, 3278, 3290, 3296, 3297, 4349])]
     #if downsample_frequency:
     #    df["date"] = pd.to_datetime(df["date"], utc=True)
     #    df, complete_groups, incomplete_groups = downsampleGroup(df, frequency=downsample_frequency, if_complete=False)
@@ -252,32 +243,32 @@ def main(filename:str,
     ic(sum(df.comment_count))
     ic(sum(df.likes_count))
     ic(sum(df.shares_count))
-    
+
     ic("Visualize:")
     ic("Basic lineplot")
-    datatype = datatype + "_weekly_incomplete_minus_2010_"
-    PlotVisuals.basicsLineplot(df, root_path, datatype)
+    comment = "_weekly_complete_minus_2010"
+    PlotVisuals.basicsLineplot(df, root_path, datatype, comment)
 
     ic("Posts per day per group")
-    PlotVisuals.posts_per_day_per_group_scatterplot(df, root_path, datatype)
+    PlotVisuals.posts_per_day_per_group_scatterplot(df, root_path, datatype, comment)
     
     ic("Posts per group")
-    PlotVisuals.posts_per_group_barplot(df, root_path, datatype)
+    PlotVisuals.posts_per_group_barplot(df, root_path, datatype, comment)
     
     ic("Unique users per group")
-    PlotVisuals.unique_users_per_group_barplot(df, root_path, datatype)
+    PlotVisuals.unique_users_per_group_barplot(df, root_path, datatype, comment)
     
     ic("Unique users over time")
-    PlotVisuals.unique_users_over_time_lineplot(df, root_path, datatype)
+    PlotVisuals.unique_users_over_time_lineplot(df, root_path, datatype, comment)
     
     ic("Posts vs Users: scatterplot")
-    PlotVisuals.posts_users_scatterplot(df, root_path, datatype)
+    PlotVisuals.posts_users_scatterplot(df, root_path, datatype, comment)
 
     ic("Toal lifespan per group")
-    PlotVisuals.total_lifespan_per_group_pointplot(df, root_path, datatype)
+    PlotVisuals.total_lifespan_per_group_pointplot(df, root_path, datatype, comment)
 
-    ic("Visualize posts per week")
-    PlotVisuals.visualize_posts_per_week(root_path, datatype)
+    #ic("Visualize posts per week")
+    #PlotVisuals.visualize_posts_per_week(root_path, datatype, comment, df)
 
 
 if __name__ == '__main__':
