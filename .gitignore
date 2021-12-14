@@ -8,7 +8,14 @@ res/
 logs/
 out/fig/
 fig/
+fig_sequential/
 
 # logs
 *.log
 *.out
+
+# images
+*.png
+
+# etc
+src/__pycache__
