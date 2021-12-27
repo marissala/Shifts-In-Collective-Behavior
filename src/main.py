@@ -9,6 +9,7 @@ import json
 import glob
 import sys
 import time
+import string
 import logging
 import pandas as pd
 import numpy as np
@@ -68,13 +69,18 @@ def lda_modelling(df,
     Results of topic modeling
     """
     if estimate_topics:
-        tm = TopicModel(tokens)
+        tm = TopicModel(tokens,
+                        chunksize=2000, #how many documents at a time
+                        passes = 20, #how many times does the whole corpus go through
+                        iterations = 400, #how often we repeat a loop for a  document
+                        alpha = 'auto',
+                        eta = 'auto'
+                        )
         n, n_cohers = tm.tune_topic_range(
             ntopics=tune_topic_range,
             plot_topics=plot_topics)
         ic(f"[INFO] Optimal number of topics is {n}")
         logging.info(f"LDA: Optimal number of topics is {n}")
-        tm = TopicModel(tokens)
         tm.fit(n, **kwargs)
     else:
         tm = TopicModel(tokens)
@@ -308,6 +314,14 @@ def prepare_data(df,
     if LANG == "da":
         nlp = spacy.load("da_core_news_lg", disable=['parser', 'ner'])
     
+    df["text"] = df["text"].astype(str)
+    df["text"] = df["text"].str.lower()
+
+    # Remove urls
+    URL_pattern = r'''(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))'''
+    df['text'] = df['text'].str.replace(URL_pattern, '')
+    df["text"] = df['text'].str.replace('[{}]'.format(string.punctuation), '')
+
     nlp.add_pipe('sentencizer')
     ic("[INFO] Lemmatizing...")
     tmp_df = df["text"].reset_index()
@@ -706,7 +720,8 @@ def main(datatype:str,
 
     some_groups = df.group_id.unique()
     ic(some_groups)
-    some_groups = [15104, 14721,21251,18761] #[5186]
+    # Take the biggest groups only
+    #some_groups = [4340,5722,6695,7339,7567,7892,8814,9352,9458,10124,11259,11816,12451,12451] #[5186]
     #df = df[df["group_id"].isin(some_groups)]
     ic(df.head())
     ic(len(df))
