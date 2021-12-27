@@ -1,5 +1,7 @@
 # Detecting shifts in collective behavior in online groups
-Main author: Maris Sala
+_Main author: Maris Sala_
+
+_Done as a project related to [AU DATALAB](https://datalab.au.dk/)_
 
 This codebase includes codes developed to study tipping points in online social groups, specifically in Danish Facebook groups, with an option to expand that to include subreddits on Reddit.
 The analysis uses change point detection and Markov models.
