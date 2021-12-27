@@ -6,6 +6,7 @@ import re
 import ast
 import glob
 import json
+import string
 import numpy as np
 import pandas as pd
 from icecream import ic
@@ -183,6 +184,37 @@ def weekly_daily_create_grouplists(filename, from_originals, downsample_frequenc
         df.to_csv(filename, index=False, sep=";")
         ic(len(df))
 
+def remove_uninteresting_groups(root_path:str, 
+                                df):
+    """Remove groups based on group id
+    root_path: path to this directory
+    df: pandas DataFrame
+
+    Returns a reset dataframe with only interesting groups
+    """
+    ic("[INFO] Length of df before removing uninteresting groups", len(df))
+    filename = f"{root_path}res/uninteresting_group_ids.txt"
+    with open(filename) as f:
+        lines = f.readlines()
+        ids_to_remove = [int(line.rstrip()) for line in lines]
+    
+    df = df[~df["group_id"].isin(ids_to_remove)].reset_index(drop=True)
+    ic("[INFO] Length of df AFTER removing uninteresting groups", len(df))
+    return df
+
+def cleanData(df):
+    ic("[INFO] Start cleaning data")
+    df["text"] = df["text"].astype(str)
+    df["text"] = df["text"].str.lower()
+    ic("--Remove URLs---")
+    # Remove urls
+    URL_pattern = r'''(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))'''
+    df['text'] = df['text'].str.replace(URL_pattern, '')
+    ic("--Remove punctuation---")
+    df["text"] = df['text'].str.replace('[{}]'.format(string.punctuation), '')
+    ic("[INFO] Cleaned data finished")
+    return df
+
 ##################################################################################
 ### GENERATE ANALYSED DATAFRAME                                                ###
 ##################################################################################
@@ -202,6 +234,9 @@ def generate_analyzed_df(filename:str,
     Returns: saves a dataset that should be used for the analysis
     """
     df = readData(filename, from_originals)
+    # Let's just take the biggest group 16011.0
+    df = df[df["group_id"]==16011].reset_index(drop=True)
+    df = cleanData(df)
 
     # Use a test dataset instead
     #df = generate_numeric_test_df(n=30, begin_date='2010-10-05')
@@ -239,7 +274,7 @@ def generate_analyzed_df(filename:str,
         ic(len(complete_groups))
         ic(len(incomplete_groups))
         #filename = f"{root_path}res/weekly_complete_daily_downsampled.csv"
-        df.text = df.text.str.replace('[^\w\s]','') # REMOVE PUNCTUATION FROM TEXT so I can use ; in saving the df
+        #df.text = df.text.str.replace('[^\w\s]','') # REMOVE PUNCTUATION FROM TEXT so I can use ; in saving the df
         filename = f"{root_path}res/weekly_incomplete_daily_downsampled.csv"
         df.to_csv(filename, index=False, sep=";")
         ic(len(df))
@@ -289,7 +324,7 @@ def save_group_df_lengths(df,
     filename = f"{root_path}/res/group_lengths.csv"
     df.to_csv(filename, index=False)
 
-def select_sample_df(list_of_groups:lst, 
+def select_sample_df(list_of_groups:list, 
                     df):
     """Selects specific groups from df
     Args:
@@ -319,7 +354,9 @@ def main(filename:str,
 
     df = which_dataset_to_load(filename, dataset_type="weekly_incomplete")
     save_group_df_lengths(df, root_path)
-    comment = "weekly_incomplete"
+    ic(len(df.group_id.unique()))
+    df = remove_uninteresting_groups(root_path, df)
+    comment = "rmvd_uninteresting_weekly_incomplete"
     
     if if_testing:
         ic("Select a few groups")
@@ -370,7 +407,7 @@ if __name__ == '__main__':
     from_originals = True
     datatype = "posts"
     downsample_frequency = '1D'
-    if_full_pipeline = False
+    if_full_pipeline = True
     
     files = glob.glob(data_path)
     filename = [i for i in files if datatype in i]
@@ -378,10 +415,22 @@ if __name__ == '__main__':
     ic(filename)
     
     if if_full_pipeline:
-        weekly_daily_create_grouplists(filename, from_originals, downsample_frequency, root_path)
+        #ic("---------STEP 1/3---------")
+        #ic("[INFO] Weekly daily create grouplists START")
+        #weekly_daily_create_grouplists(filename, from_originals, downsample_frequency, root_path)
+        ic("---------STEP 2/3---------")
+        ic("[INFO] Weekly daily create grouplists END, Generate analyzed df START")
         generate_analyzed_df(filename, from_originals, downsample_frequency, root_path)
+        ic("---------STEP 3/3---------")
+        ic("[INFO] Generate analyzed df END, main START")
         main(filename, from_originals, datatype, downsample_frequency='1W')
+        ic("[INFO] Main END")
+        ic("---------3 STEPS FINISHED---------")
     else:
+        ic("---------STEP 1/1---------")
+        ic("[INFO] Main START")
         main(filename, from_originals, datatype, downsample_frequency='1W')
+        ic("[INFO] Main END")
+        ic("---------1 STEPS FINISHED---------")
 
     ic("DONE")
