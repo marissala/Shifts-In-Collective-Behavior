@@ -189,7 +189,7 @@ class PlotVisuals:
         #ic("Add legend")
         #fig, ax1 = PlotSettings.addLegend(fig, ax1)
         
-        plot_name = f"{root_path}out/fig/specs/{datatype}_word_count_{comment}.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_word_count.png"
         #fig.savefig(plot_name, bbox_extra_artists=(leg,), bbox_inches='tight') # in case a legend
         fig.savefig(plot_name, bbox_inches='tight')
         ic("[PLOT] Basic lineplot finished")
@@ -232,7 +232,7 @@ class PlotVisuals:
         fig, ax1 = PlotSettings.latePlotSettings(fig, ax1, if_dates = True)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_day_per_group_scatter.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_posts_per_day_per_group_scatter.png"
         fig.savefig(plot_name, bbox_inches='tight')
         
         ic("Save figure done\n------------------\n")
@@ -298,7 +298,7 @@ class PlotVisuals:
         ax1.tick_params(bottom=False)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_group.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_posts_per_group.png"
         fig.savefig(plot_name, bbox_inches='tight')
         ic("Save figure done\n------------------\n")
 
@@ -336,7 +336,7 @@ class PlotVisuals:
         ax1.tick_params(labelsize=15)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_per_{n}_groups.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_unique_users_per_{n}_groups.png"
         fig.savefig(plot_name, bbox_inches='tight')
         ic("Save figure done\n------------------\n")
 
@@ -363,7 +363,7 @@ class PlotVisuals:
         ax1.tick_params(bottom=False)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_per_group.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_unique_users_per_group.png"
         fig.savefig(plot_name, bbox_inches='tight')
         ic("Save figure done\n------------------\n")
 
@@ -409,7 +409,7 @@ class PlotVisuals:
         ax1.set_ylabel("Unique users per group", fontsize = 40, color="black")
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_posts_vs_unique_users.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_posts_vs_unique_users.png"
         fig.savefig(plot_name, bbox_inches='tight')
         ic("Save figure done\n------------------\n")
 
@@ -443,7 +443,7 @@ class PlotVisuals:
         ax1.axhline(100, color="red", linewidth=2)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_unique_users_over_time.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_unique_users_over_time.png"
         fig.savefig(plot_name, bbox_inches='tight')
         
         ic("Save figure done\n------------------\n")
@@ -492,7 +492,7 @@ class PlotVisuals:
         combined.to_csv(filename, index=False)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_total_lifespan_per_group.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_total_lifespan_per_group.png"
         fig.savefig(plot_name, bbox_inches='tight')
         
         ic("Save figure done\n------------------\n")
@@ -527,7 +527,7 @@ class PlotVisuals:
         #ax1.xaxis.set_major_formatter(date_form)
 
         ic("Save image")
-        plot_name = f"{root_path}out/fig/specs/{datatype}_posts_per_week_per_group_scatterlinepot.png"
+        plot_name = f"{root_path}out/fig/specs/{datatype}_{comment}_posts_per_week_per_group_scatterlinepot.png"
         fig.savefig(plot_name, bbox_inches='tight')
         
         ic("DONE")
@@ -598,7 +598,7 @@ class PlotHMMCPD:
                     c=df['state'].map(colors),
                     s=0.2)
         ax.set(ylim=(0,1))
-        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_novelty_{comment}.png"
+        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_{comment}_HMM_gaussian_novelty.png"
         plt.savefig(filename)
         ic("[INFO] Novelty figure done")
 
@@ -614,12 +614,12 @@ class PlotHMMCPD:
                     c=df['state'].map(colors),
                     s=0.2)
         ax.set(ylim=(-1,1))
-        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_gaussian_resonance_{comment}.png"
+        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_{comment}_HMM_gaussian_resonance.png"
         plt.savefig(filename)
         ic("[INFO] Resonance figure done")
 
     @staticmethod
-    def visualize_HMM_CPD(OUT_PATH, comment, group_id, observ_name, observations, states, change_points):
+    def visualize_HMM_CPD(OUT_PATH, comment, group_id, observ_name, observations, states, nr_of_states, change_points):
         palette = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
 
         df = pd.DataFrame(dict(observation=observations, state=states)).reset_index()
@@ -645,7 +645,7 @@ class PlotHMMCPD:
                 s = 25, linewidths = 1)
         #ax.set(ylim=(0,1))
         group_id = str(int(group_id))
-        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_HMM_{observ_name}_{comment}.png"
+        filename = f"{OUT_PATH}out/fig/hmm/{group_id}_{comment}_HMM_{nr_of_states}_states_{observ_name}.png"
         plt.savefig(filename)
         ic("[INFO] HMM CPD figure done", observ_name)
         
@@ -691,5 +691,5 @@ class PlotHMMCPD:
         plt.axis('off')
 
         group_id = str(int(group_id))
-        filename = f"{OUT_PATH}out/fig/hmm_model/{group_id}_HMM_model_{nr_of_states}_states_{observ_name}_{comment}.png"
+        filename = f"{OUT_PATH}out/fig/hmm_model/{group_id}_{comment}_HMM_model_{nr_of_states}_states_{observ_name}.png"
         plt.savefig(filename, dpi=150, bbox_inches='tight')
