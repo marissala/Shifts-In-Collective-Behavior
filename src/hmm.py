@@ -187,7 +187,7 @@ def main_novelty_resonance(OUT_PATH, datatype):
             change_points_res = change_point_detection(OUT_PATH, datatype, resonance)
 
             ic("[INFO] Visualize")
-            PlotVisuals.visualize_HMM_CPD(OUT_PATH, comment, group_id, novelty, resonance, Z_nov, Z_res, change_points_nov, change_points_res)
+            #PlotVisuals.visualize_HMM_CPD(OUT_PATH, comment, group_id, novelty, resonance, Z_nov, Z_res, change_points_nov, change_points_res)
             ic(model_nov.transmat_)
             nr_of_states = len(set(Z_nov))
             simple_states = list(range(0,nr_of_states))
@@ -196,7 +196,7 @@ def main_novelty_resonance(OUT_PATH, datatype):
             lst2 = list(flatten(lst2))
             states = list(zip(lst1,lst2))
             ic(states)
-            PlotVisuals.visualize_HMM_model(model_nov.transmat_, states, nr_of_states, OUT_PATH, group_id, comment)
+            #PlotVisuals.visualize_HMM_model(model_nov.transmat_, states, nr_of_states, OUT_PATH, group_id, comment)
             ic(f'Done with group: {group_id}')
             ic('------------------------------')
         except Exception:
@@ -208,27 +208,43 @@ def main_novelty_resonance(OUT_PATH, datatype):
 def generate_and_test(model, group_id, observ_name):
     observations, states = model.sample(1000)
     comment = "TEST"
+    nr_of_states = list(set(states))
     PlotHMMCPD.visualize_HMM_CPD(OUT_PATH, comment, group_id, 
                                         observ_name=observ_name, observations=list(flatten(observations)),
-                                        states=states, change_points=[])
+                                        states=states, nr_of_states=nr_of_states, change_points=[])
+
+def get_uninteresting_group_ids(OUT_PATH):
+    filename = f"{OUT_PATH}res/uninteresting_group_ids.txt"
+    with open(filename) as f:
+        lines = f.readlines()
+        ids_to_remove = [int(line.rstrip()) for line in lines]
+    return ids_to_remove
 
 def main(OUT_PATH, datatype):
     #out = load_from_premade_model(OUT_PATH, datatype)
     observ_name = "daily_topics"
     filename = f"{OUT_PATH}out/{datatype}_LDA_posts.csv"
-    df = pd.read_csv(filename, sep=";")
-    ic(df.head())
+    ori_df = pd.read_csv(filename, sep=";").reset_index()
+    ic(ori_df.head())
+    
+    largest_groups = ori_df.groupby("group_id").agg({'index': 'nunique'}).reset_index().sort_values("index", ascending=False)[:30]
+    group_ids = list(largest_groups.group_id)
 
-    group_ids = df.group_id.unique() #["5186"] #["12445"] #["3274", "3278"]#, "3290", "3296", "3297", "4349"]
+    #group_ids = ori_df.group_id.unique() #["5186"] #["12445"] #["3274", "3278"]#, "3290", "3296", "3297", "4349"]
     n_components = 3
     n_iter = 3200
 
+    uninteresting_group_ids = get_uninteresting_group_ids(OUT_PATH)
+    ic("[INFO] Original nr of groups", len(group_ids))
+    group_ids = list(set(group_ids) - set(uninteresting_group_ids))
+    ic("[INFO] Actual nr of groups", len(group_ids))
+    
     for group_id in group_ids:
         ic(group_id)
         try:
             comment = "MultimodalHMM"
 
-            df = df[df["group_id"]==group_id]
+            df = ori_df[ori_df["group_id"]==group_id]
             df["date"] = pd.to_datetime(df["date"])
             ic(df.date)
             ic(len(df))
@@ -249,11 +265,12 @@ def main(OUT_PATH, datatype):
             change_points = change_point_detection(OUT_PATH, datatype, daily_topics)
 
             ic("[INFO] Visualize")
+            nr_of_states = len(set(Z_daily))
             PlotHMMCPD.visualize_HMM_CPD(OUT_PATH, comment, group_id, 
                                         observ_name=observ_name, observations=daily_topics,
-                                        states=Z_daily, change_points=change_points)
+                                        states=Z_daily, nr_of_states=nr_of_states,
+                                        change_points=change_points)
             ic(model_daily.transmat_)
-            nr_of_states = len(set(Z_daily))
             simple_states = list(range(0,nr_of_states))
             lst1 = simple_states * nr_of_states # [0,1,2] * 2 = [0,1,2,0,1,2]
             lst2 = [[i]*nr_of_states for i in simple_states] # [0,0,1,1,2,2]
