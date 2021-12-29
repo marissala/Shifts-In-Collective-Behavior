@@ -35,9 +35,7 @@ from tekisuto.models import InfoDynamics
 from tekisuto.metrics import jsd
 from preparations.preptopicmodeling import prepareTopicModeling
 from visualsrc.visualsrc import plotVisualsrc
-sys.path.insert(1, r'/home/commando/marislab/gsdmm/')
-from gsdmm import MovieGroupProcess
-sys.path.insert(1, r'/home/commando/marislab/compare-short-topic-modeling/src/')
+sys.path.insert(1, r'/home/commando/marislab/facebook-posts/src/') # current repository
 from PreProcess.preprocess_texts import sent_to_words, parallelized_lemmatizer, make_lemmas
 
 mgp = MovieGroupProcess(K=50, alpha=0.1, beta=0.1, n_iters=7)
