@@ -30,6 +30,7 @@ The analysis uses change point detection and Markov models.
     │   ├── hmm.py                          #   Hidden Markov Model codes together with Change Point Detection
     │   ├── join_posts_comments.py          #   In development, currently halted: joining Facebook posts with Facebook comments
     │   ├── main.py                         #   Main codes for reading in desired sample, doing LDA per group, calculates novelty-resonance, saves results
+    │   ├── preprocess_texts.py             #   Optimized text preprocessing: lemmatization and tokenization
     │   ├── read_data.py                    #   Reads different forms of datasets, as needed
     │   └── visalize.py                     #   All necessary visualization codes
     ├── tmp/                                # Temporary folder with temp dfs for testing reasons
@@ -38,7 +39,7 @@ The analysis uses change point detection and Markov models.
     └── README.md                           # Main information for this repository
 
 ## To use the codes
-You'll need newsFluxus codes for getting novelty-resonance out, as well as a few other codebases that I might integrate into this codebase if I have the time
+You'll need [newsFluxus](https://github.com/AU-DATALAB/newsFluxus) codes for getting novelty-resonance out.
 
 The basic pipeline looks something like this, given that the codes are run from the root folder:
 ```shell
